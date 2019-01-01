@@ -25,3 +25,6 @@ RTA-TB is stored in Game Time for Sonic 1 (SMS), and Sonic 3 & Knuckles.
 ## Final Split
 Final split is done according to the SRC rules for the relevant game at the time of coding. 
 
+## Level Select Activation
+To help test the autosplitter it has a Debug setting to enable Level Select in games that have one.
+
