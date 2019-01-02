@@ -59,12 +59,11 @@ init
         vars.ingame = false;
 
         vars.levelselectoffset = 0;
-        vars.levelselectbytes = new byte[] {};
         vars.isGenSonic1 = false;
         vars.isGenSonic1or2 = false;
         vars.isS3K = false;
         vars.nextsplit = "";
-
+        vars.levelselectbytes = new byte[] {0x01}; // Default as most are 0 - off, 1 - on
         IDictionary<string, string> expectednextlevel = new Dictionary<string, string>();
         vars.nextzonemap = false;
         switch ( (string) vars.gamename ) {
@@ -83,12 +82,29 @@ init
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset + 0x040D                          ) { Name = "levelselect" },
                 };
                 vars.levelselectoffset = (IntPtr)memoryOffset + 0x040D;
-                vars.levelselectbytes = new byte[] {0x01};
                 vars.igttotal = 0;
                 vars.isIGT = true;
                 
                 break;
 
+            /**********************************************************************************
+                START Sonic Spinball (Genesis / Mega Drive) 
+            **********************************************************************************/
+            case "Sonic Spinball (Genesis / Mega Drive)":
+                vars.levelselectoffset = (IntPtr)memoryOffset + 0xF8F8;
+                vars.watchers = new MemoryWatcherList
+                {
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x067F : 0x067E ) ) { Name = "level" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xF2FC : 0xF2FD ) ) { Name = "trigger" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xFF69 : 0xFF68 ) ) { Name = "menuoption" },
+                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + 0xFF6C                            ) { Name = "menutimeout" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x3CB7 : 0x3CB6 ) ) { Name = "gamemode" },
+
+                    new MemoryWatcher<byte>(  vars.levelselectoffset                         ) { Name = "levelselect" },
+                };
+
+                vars.lastmenuoption = 999;
+                break;
             /**********************************************************************************
                 START Sonic the HedgeHog 1 & 2 Genesis watchlist
             **********************************************************************************/        
@@ -221,7 +237,6 @@ init
                 vars.isGenSonic1or2 = true;
                 vars.isIGT = true;
 
-                vars.levelselectbytes = new byte[] {0x01};
 
                 vars.expectednextlevel = expectednextlevel;
                 break;
@@ -261,7 +276,6 @@ init
                 vars.processingzone = false;
                 vars.skipsAct1Split = false;
                 vars.isS3K = true;
-                vars.levelselectbytes = new byte[] {0x01};
                 break;
             /**********************************************************************************
                 START Sonic the Hedgehog (Master System) watchlist
@@ -387,7 +401,47 @@ update
 
             gametime = TimeSpan.FromSeconds(vars.igttotal);
             break;
+        /**********************************************************************************
+            START Sonic Spinball (Genesis / Mega Drive) 
+        **********************************************************************************/
+        case "Sonic Spinball (Genesis / Mega Drive)":
 
+            if ( vars.watchers["menuoption"].Old == 15 || vars.watchers["menuoption"].Old == 1 || vars.watchers["menuoption"].Old == 2 ) {
+                vars.lastmenuoption = vars.watchers["menuoption"].Old;
+            }
+            if ( !vars.ingame && 
+                 (
+                     vars.lastmenuoption == 15 ||
+                     vars.lastmenuoption == 1
+                 )
+                 &&
+                 vars.watchers["menutimeout"].Old > 2 &&
+                
+                vars.watchers["trigger"].Old == 3 &&
+                vars.watchers["trigger"].Current == 2 ) {
+                start = true;
+            }
+
+            if ( vars.ingame && 
+                (
+                    (
+                        // Level -> Boss Destroyed
+                        vars.watchers["gamemode"].Old == 2 &&
+                        vars.watchers["gamemode"].Current == 4
+                        
+                    ) ||
+                    (
+                        // Bonus Stage -> Level
+                        vars.watchers["gamemode"].Old == 6 &&
+                        vars.watchers["gamemode"].Current == 1
+                        
+                    )
+                
+                )
+             ) {
+                split = true;
+            }
+            break;
         /**********************************************************************************
             START Sonic the Hedgehog 1 & 2 Genesis support
         **********************************************************************************/        

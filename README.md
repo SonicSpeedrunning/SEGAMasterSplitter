@@ -16,13 +16,16 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 * Sonic 3 & Knuckles
 * Sonic 3 Complete
 * Sonic 3D Blast
+* Sonic Spinball (Genesis/Mega Drive)
 * Sonic the Hedgehog 1 (Master System)
 
 ## Timing Methods
 IGT is stored in Game Time for Sonic 1, 2 and 3D Blast.
 RTA-TB is stored in Game Time for Sonic 1 (SMS), and Sonic 3 & Knuckles.
 
-## Final Split
+## Splits
+Most splits are done at the beginning of the next level (i.e. after bonus screens etc) This is with the exception of Sonic Spinball
+where splits are done at the final hit on each boss, and at the start of a new level.
 Final split is done according to the SRC rules for the relevant game at the time of coding. 
 
 ## Level Select Activation
