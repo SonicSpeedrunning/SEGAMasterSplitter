@@ -418,7 +418,7 @@ update
                      vars.lastmenuoption == 1
                  )
                  &&
-                 menutimeout > 2 &&
+                 menutimeout > 10 &&
                 
                 vars.watchers["trigger"].Old == 3 &&
                 vars.watchers["trigger"].Current == 2 ) {
