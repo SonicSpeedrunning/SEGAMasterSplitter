@@ -91,7 +91,7 @@ init
                 START Sonic Spinball (Genesis / Mega Drive) 
             **********************************************************************************/
             case "Sonic Spinball (Genesis / Mega Drive)":
-                vars.levelselectoffset = (IntPtr)memoryOffset + 0xF8F8;
+                vars.levelselectoffset = (IntPtr)memoryOffset + ( isBigEndian ? 0xF8F8 : 0xF8F9 );
                 vars.watchers = new MemoryWatcherList
                 {
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x067F : 0x067E ) ) { Name = "level" },
@@ -405,7 +405,10 @@ update
             START Sonic Spinball (Genesis / Mega Drive) 
         **********************************************************************************/
         case "Sonic Spinball (Genesis / Mega Drive)":
-
+            var menutimeout = vars.watchers["menutimeout"].Old;
+            if ( vars.isBigEndian ) {
+                menutimeout = vars.SwapEndianness( menutimeout );
+            }
             if ( vars.watchers["menuoption"].Old == 15 || vars.watchers["menuoption"].Old == 1 || vars.watchers["menuoption"].Old == 2 ) {
                 vars.lastmenuoption = vars.watchers["menuoption"].Old;
             }
@@ -415,14 +418,13 @@ update
                      vars.lastmenuoption == 1
                  )
                  &&
-                 vars.watchers["menutimeout"].Old > 2 &&
+                 menutimeout > 2 &&
                 
                 vars.watchers["trigger"].Old == 3 &&
                 vars.watchers["trigger"].Current == 2 ) {
                 start = true;
-            }
-
-            if ( vars.ingame && 
+            } else {
+                if 
                 (
                     (
                         // Level -> Boss Destroyed
@@ -437,9 +439,16 @@ update
                         
                     )
                 
-                )
-             ) {
-                split = true;
+                ) {
+                    split = true;
+                }
+                if (
+                    vars.watchers["gamemode"].Current == 0 &&
+                    vars.watchers["gamemode"].Old > 0 &&
+                    vars.watchers["gamemode"].Old <= 6
+                ) {
+                    reset = true;
+                }
             }
             break;
         /**********************************************************************************
