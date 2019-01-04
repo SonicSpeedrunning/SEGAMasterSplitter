@@ -104,6 +104,7 @@ init
                 };
 
                 vars.lastmenuoption = 999;
+                vars.skipsplit = false;
                 break;
             /**********************************************************************************
                 START Sonic the HedgeHog 1 & 2 Genesis watchlist
@@ -418,14 +419,22 @@ update
                      vars.lastmenuoption == 1
                  )
                  &&
+                 vars.watchers["gamemode"].Current == 0 &&
                  menutimeout > 10 &&
                 
                 vars.watchers["trigger"].Old == 3 &&
                 vars.watchers["trigger"].Current == 2 ) {
                 start = true;
             } else {
-                if 
-                (
+                if (
+                        // Died
+                        vars.watchers["gamemode"].Old == 2 &&
+                        vars.watchers["gamemode"].Current == 6
+                ) {
+                    vars.skipsplit = true;
+                }
+                
+                if (
                     (
                         // Level -> Boss Destroyed
                         vars.watchers["gamemode"].Old == 2 &&
@@ -437,10 +446,27 @@ update
                         vars.watchers["gamemode"].Old == 6 &&
                         vars.watchers["gamemode"].Current == 1
                         
+                    ) || 
+                    (
+                        settings["ss_multiball"] &&
+                        (
+                            (
+                                vars.watchers["gamemode"].Old == 2 &&
+                                vars.watchers["gamemode"].Current == 3
+                            ) ||
+                            (
+                                vars.watchers["gamemode"].Old == 3 &&
+                                vars.watchers["gamemode"].Current == 2
+                            )
+                        )
                     )
                 
                 ) {
-                    split = true;
+                    if ( vars.skipsplit ) {
+                        vars.skipsplit = false;
+                    } else {
+                        split = true;
+                    }
                 }
                 if (
                     vars.watchers["gamemode"].Current == 0 &&
@@ -784,8 +810,10 @@ startup
 
     settings.SetToolTip("hard_reset", "If checked, a hard reset will reset the timer.");
 
-
-
+    /* Sonic Spinball settings */
+    settings.Add("ss", true, "Settings for Sonic Spinball (Genesis / Mega Drive)");
+    settings.Add("ss_multiball", false, "Split on entry & exit of multiball stages", "ss");
+    settings.SetToolTip("ss_multiball", "If checked, will split on entry and exit of extra bonus stages for Max Jackpot Bonus.");
     /* Debug Settings */
 
     settings.Add("debug", false, "Debugging Options");
