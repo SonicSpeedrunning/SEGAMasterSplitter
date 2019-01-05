@@ -301,6 +301,9 @@ init
                 };
                 
                 break;
+            /**********************************************************************************
+                START Sonic the Hedgehog (Game Gear / Master System) watchlist
+            **********************************************************************************/
             case "Sonic the Hedgehog 2 (Game Gear / Master System)":
                 if ( isFusion ) {
                     memoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)smsOffset) ) + (int) 0xC000;
