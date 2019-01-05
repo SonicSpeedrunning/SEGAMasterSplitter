@@ -62,7 +62,9 @@ init
         vars.isGenSonic1 = false;
         vars.isGenSonic1or2 = false;
         vars.isS3K = false;
+        vars.isSMSGGSonic2 = false;
         vars.nextsplit = "";
+        vars.startTrigger = 0x8C;
         vars.levelselectbytes = new byte[] {0x01}; // Default as most are 0 - off, 1 - on
         IDictionary<string, string> expectednextlevel = new Dictionary<string, string>();
         vars.nextzonemap = false;
@@ -297,9 +299,87 @@ init
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1C08   ) { Name = "menucheck1" },
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1C0A   ) { Name = "menucheck2" },
                 };
-
+                
                 break;
+            /**********************************************************************************
+                START Sonic the Hedgehog (Game Gear / Master System) watchlist
+            **********************************************************************************/
+            case "Sonic the Hedgehog 2 (Game Gear / Master System)":
+                if ( isFusion ) {
+                    memoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)smsOffset) ) + (int) 0xC000;
+                }
+                vars.levelselectbytes = new byte[] {0x0D};
+                vars.levelselectoffset = (IntPtr) memoryOffset + 0x112C;
+                vars.emeraldcountoffset = (IntPtr) memoryOffset + 0x12BD;
+                vars.emeraldflagsoffset = (IntPtr) memoryOffset + 0x12C5;
+                vars.startTrigger = 68;
+                vars.isSMSGGSonic2 = true;
+                vars.watchers = new MemoryWatcherList
+                {
 
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x12B9     ) { Name = "seconds" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x12BA    ) { Name = "minutes" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1298     ) { Name = "lives" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1298 /* for simplicity */    ) { Name = "continues" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1295    ) { Name = "zone" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1296     ) { Name = "act" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1293     ) { Name = "trigger" },
+                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + 0x12B9  /* for simplicity */  ) { Name = "levelframecount" },
+                    new MemoryWatcher<byte>( (IntPtr)memoryOffset + 0x12C8     ) { Name = "systemflag" },
+                    new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
+                    new MemoryWatcher<byte>(  vars.emeraldcountoffset     ) { Name = "emeraldcount" },
+                    new MemoryWatcher<byte>(  vars.emeraldflagsoffset     ) { Name = "emeraldflags" },
+                    
+                };
+                vars.isIGT = true;
+                const string UNDER_GROUND_1 = "0-0";
+                const string UNDER_GROUND_2 = "0-1";
+                const string UNDER_GROUND_3 = "0-2";
+                const string SKY_HIGH_1 = "1-0";
+                const string SKY_HIGH_2 = "1-1";
+                const string SKY_HIGH_3 = "1-2";
+                const string AQUA_LAKE_1 = "2-0";
+                const string AQUA_LAKE_2 = "2-1";
+                const string AQUA_LAKE_3 = "2-2";
+                const string GREEN_HILLS_1 = "3-0";
+                const string GREEN_HILLS_2 = "3-1";
+                const string GREEN_HILLS_3 = "3-2";
+                const string GIMMICK_MT_1 = "4-0";
+                const string GIMMICK_MT_2 = "4-1";
+                const string GIMMICK_MT_3 = "4-2";
+                const string SCRAMBLED_EGG_1 = "5-0";
+                const string SCRAMBLED_EGG_2 = "5-1";
+                const string SCRAMBLED_EGG_3 = "5-2";
+                const string CRYSTAL_EGG_1 = "6-0";
+                const string CRYSTAL_EGG_2 = "6-1";
+                const string CRYSTAL_EGG_3 = "6-2";
+                const string S2SMS_GOOD_CREDITS = "7-1"; // Good Ending Credits
+                const string S2SMS_END = "99-0"; // Good Ending Credits
+                expectednextlevel.Clear();
+                expectednextlevel[UNDER_GROUND_1] = UNDER_GROUND_2;
+                expectednextlevel[UNDER_GROUND_2] = UNDER_GROUND_3;
+                expectednextlevel[UNDER_GROUND_3] = SKY_HIGH_1;
+                expectednextlevel[SKY_HIGH_1] = SKY_HIGH_2;
+                expectednextlevel[SKY_HIGH_2] = SKY_HIGH_3;
+                expectednextlevel[SKY_HIGH_3] = AQUA_LAKE_1;
+                expectednextlevel[AQUA_LAKE_1] = AQUA_LAKE_2;
+                expectednextlevel[AQUA_LAKE_2] = AQUA_LAKE_3;
+                expectednextlevel[AQUA_LAKE_3] = GREEN_HILLS_1;
+                expectednextlevel[GREEN_HILLS_1] = GREEN_HILLS_2;
+                expectednextlevel[GREEN_HILLS_2] = GREEN_HILLS_3;
+                expectednextlevel[GREEN_HILLS_3] = GIMMICK_MT_1;
+                expectednextlevel[GIMMICK_MT_1] = GIMMICK_MT_2;
+                expectednextlevel[GIMMICK_MT_2] = GIMMICK_MT_3;
+                expectednextlevel[GIMMICK_MT_3] = SCRAMBLED_EGG_1;
+                expectednextlevel[SCRAMBLED_EGG_1] = SCRAMBLED_EGG_2;
+                expectednextlevel[SCRAMBLED_EGG_2] = SCRAMBLED_EGG_3;
+                expectednextlevel[SCRAMBLED_EGG_3] = CRYSTAL_EGG_1;
+                expectednextlevel[CRYSTAL_EGG_1] = CRYSTAL_EGG_2;
+                expectednextlevel[CRYSTAL_EGG_2] = CRYSTAL_EGG_3;
+                expectednextlevel[CRYSTAL_EGG_3] = S2SMS_GOOD_CREDITS;
+                expectednextlevel[S2SMS_GOOD_CREDITS] = S2SMS_END;
+                vars.expectednextlevel = expectednextlevel;
+                break;
             default:
                 throw new NullReferenceException (String.Format("Game {0} not supported.", vars.gamename ));
         
@@ -355,9 +435,12 @@ update
 
     var gametime = TimeSpan.FromDays(999);
     var oldgametime = gametime;
-
-    if ( (long) vars.levelselectoffset > 0 && settings["levelselect"] && vars.watchers["levelselect"].Current != 1 ) {
+    if ( vars.isSMSGGSonic2 && vars.watchers["systemflag"].Current == 1 ) {
+        vars.levelselectbytes = new byte[] { 0xB6 };
+    }
+    if ( (long) vars.levelselectoffset > 0 && settings["levelselect"] && vars.watchers["levelselect"].Current != vars.levelselectbytes[0] ) {
         vars.DebugOutput("Enabling Level Select");
+        
         game.WriteBytes( (IntPtr) vars.levelselectoffset, (byte[]) vars.levelselectbytes );
     }
 
@@ -478,18 +561,34 @@ update
             }
             break;
         /**********************************************************************************
-            START Sonic the Hedgehog 1 & 2 Genesis support
+            START Sonic the Hedgehog 1 & 2 Genesis & 2 8 bit support
         **********************************************************************************/        
         case "Sonic the Hedgehog (Genesis / Mega Drive)":
         case "Sonic the Hedgehog 2 (Genesis / Mega Drive)":
-            if ( !vars.ingame && vars.watchers["trigger"].Current == 0x8C && vars.watchers["act"].Current == 0 && vars.watchers["zone"].Current == 0 ) {
-                vars.nextsplit = "0-1"; // EMERALD_HILL_2 or GREEN_HILL_2
+        case "Sonic the Hedgehog 2 (Game Gear / Master System)":
+            if ( !vars.ingame && vars.watchers["trigger"].Current == vars.startTrigger && vars.watchers["act"].Current == 0 && vars.watchers["zone"].Current == 0 ) {
+                vars.nextsplit = "0-1"; // EMERALD_HILL_2 or GREEN_HILL_2 or UNDER_GROUND_2
                 start = true;
                 vars.loading = true;
                 vars.igttotal = 0;
                 
             }
-            if ( vars.watchers["lives"].Current == 0 && vars.watchers["continues"].Current == 0 ) {
+            if ( settings["s2smsallemeralds"] && vars.isSMSGGSonic2 ) {
+                // enable all emeralds
+                if ( vars.watchers["emeraldcount"].Current < vars.watchers["zone"].Current ) {
+                    vars.DebugOutput("Updating Emerald Count");
+                    game.WriteBytes( (IntPtr) vars.emeraldcountoffset, new byte[] { vars.watchers["zone"].Current } );
+                }
+                if ( vars.watchers["zone"].Current == 5 && vars.watchers["emeraldflags"].Current < 0x1F ) {
+                    vars.DebugOutput("Updating Emerald Flags");
+                    game.WriteBytes( (IntPtr) vars.emeraldflagsoffset, new byte[] { 0x1F } );
+                }
+                if ( vars.watchers["zone"].Current == 6 && vars.watchers["emeraldflags"].Current < 0x3F ) {
+                    vars.DebugOutput("Updating Emerald Flags");
+                    game.WriteBytes( (IntPtr) vars.emeraldflagsoffset, new byte[] { 0x3F } );
+                }
+            }
+            if ( !settings["levelselect"] && vars.watchers["lives"].Current == 0 && vars.watchers["continues"].Current == 0 ) {
                 reset = true;
             }
             var currentlevel = String.Format("{0}-{1}", vars.watchers["zone"].Current, vars.watchers["act"].Current);
@@ -501,21 +600,35 @@ update
                 }
                 split = true;
             }
+            if ( vars.isSMSGGSonic2 && currentlevel == "7-0" && vars.nextsplit == "6-0") {
+                split = true;
+            }
             if ( 
                 vars.nextsplit == "99-0" && (
                     ( vars.isGenSonic1 && vars.watchers["trigger"].Current == 0x18 ) ||
                     ( !vars.isGenSonic1 && vars.watchers["trigger"].Current == 0x20 )
+                    
                 )
-            ) {
+            )  {
                 split = true;
             }
 
             if ( vars.ingame && !vars.loading ) {
+                var oldSeconds = vars.watchers["seconds"].Old;
+                var curSeconds = vars.watchers["seconds"].Current;
+                if ( !vars.isGenSonic1or2 ) {
+                    oldSeconds = ( ( oldSeconds >> 4 ) * 10 ) + ( oldSeconds & 0xF );
+                    curSeconds = ( ( curSeconds >> 4 ) * 10 ) + ( curSeconds & 0xF );
+                }
                 if (
-                    (vars.watchers["seconds"].Current == (vars.watchers["seconds"].Old + 1)) && (vars.watchers["minutes"].Current == vars.watchers["minutes"].Old) || 
-                    (vars.watchers["seconds"].Current == 0 && (vars.watchers["minutes"].Current == (vars.watchers["minutes"].Old + 1)))
-                    ) 
-                {
+                    (
+                        vars.watchers["minutes"].Current == vars.watchers["minutes"].Old &&
+                        curSeconds == oldSeconds + 1
+                    ) || (
+                        vars.watchers["minutes"].Current == (vars.watchers["minutes"].Old + 1) &&
+                        vars.watchers["seconds"].Current == 0 
+                    )
+                ) {
                     vars.igttotal++;
                 }
             }
@@ -818,6 +931,7 @@ startup
 
     settings.Add("debug", false, "Debugging Options");
     settings.Add("levelselect", false, "Enable Level Select (if supported)", "debug");
+    settings.Add("s2smsallemeralds", false, "S2SMS Enable All Emeralds", "debug");
 }
 
 
