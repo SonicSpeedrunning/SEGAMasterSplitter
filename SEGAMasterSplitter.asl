@@ -50,7 +50,7 @@ init
     memoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)genOffset) );
     vars.isBigEndian = isBigEndian;
     vars.gamename = timer.Run.GameName;
-
+    vars.livesplitGameName = vars.gamename;
     Action reInitialise = () => {
         vars.isIGT = false;
         vars.loading = false;
@@ -68,6 +68,7 @@ init
         vars.levelselectbytes = new byte[] {0x01}; // Default as most are 0 - off, 1 - on
         IDictionary<string, string> expectednextlevel = new Dictionary<string, string>();
         vars.nextzonemap = false;
+        vars.livesplitGameName = vars.gamename;
         switch ( (string) vars.gamename ) {
             /**********************************************************************************
                 START Sonic 3D Blast Memory watchlist
@@ -247,7 +248,9 @@ init
                 START Sonic the Hedgehog 3 & Knuckles watchlist
             **********************************************************************************/
             case "Sonic 3 & Knuckles":
+            case "Sonic 3 and Knuckles":
             case "Sonic 3 Complete":
+                vars.gamename = "Sonic 3 & Knuckles";
                 vars.levelselectoffset = (IntPtr) memoryOffset + ( isBigEndian ? 0xFFE0 : 0xFFE1 );
                 vars.watchers = new MemoryWatcherList
                 {
@@ -394,7 +397,7 @@ init
 update
 {
 
-    if ( vars.gamename != timer.Run.GameName ) {
+    if ( vars.livesplitGameName != timer.Run.GameName ) {
         vars.DebugOutput("Game in Livesplit changed, reinitialising...");
         vars.gamename = timer.Run.GameName;
         vars.reInitialise();
@@ -641,8 +644,6 @@ update
             START Sonic the Hedgehog 3 & Knuckles watchlist
         **********************************************************************************/
             case "Sonic 3 & Knuckles":
-            case "Sonic 3 Complete":
-
                 if (!vars.ingame && vars.watchers["trigger"].Current == 0x8C && vars.watchers["act"].Current == 0 && vars.watchers["zone"].Current == 0)
                 {
                     vars.DebugOutput(String.Format("next split on: zone: {0} act: {1}", vars.nextzone, vars.nextact));
