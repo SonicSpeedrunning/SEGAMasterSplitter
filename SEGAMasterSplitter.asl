@@ -158,18 +158,9 @@ init
                 expectednextlevel[STAR_LIGHT_3] = SCRAP_BRAIN_1;
                 expectednextlevel[SCRAP_BRAIN_1] = SCRAP_BRAIN_2;
                 expectednextlevel[SCRAP_BRAIN_2] = SCRAP_BRAIN_3;
-                expectednextlevel[SCRAP_BRAIN_3] = FINAL_ZONE; // LUL
+                expectednextlevel[SCRAP_BRAIN_3] = FINAL_ZONE;
                 expectednextlevel[FINAL_ZONE] = AFTER_FINAL_ZONE; 
                 
-                vars.actsplits = new bool[][]
-                {
-                    new bool[] {true, true, true}, // 0 - Green Hill Zone
-                    new bool[] {true, true, true, true}, // 1 - Labyrinth Zone
-                    new bool[] {true, true, true}, // 2 - Marble Zone
-                    new bool[] {true, true, true}, // 3 - Star Light Zone
-                    new bool[] {true, true, true}, // 4 - Spring Yard Zone
-                    new bool[] {true, true, true} // 5 - Scrap Brain Zone
-                };
                 vars.levelselectoffset = (IntPtr) memoryOffset + ( isBigEndian ? 0xFFE0 : 0xFFE1 );
                 vars.isGenSonic1 = true;
                 goto case "Sonic the Hedgehog 2 (Genesis / Mega Drive)";
@@ -591,7 +582,10 @@ update
                     game.WriteBytes( (IntPtr) vars.emeraldflagsoffset, new byte[] { 0x3F } );
                 }
             }
-            if ( !settings["levelselect"] && vars.watchers["lives"].Current == 0 && vars.watchers["continues"].Current == 0 ) {
+            if ( 
+                ( !settings["levelselect"] && vars.watchers["lives"].Current == 0 && vars.watchers["continues"].Current == 0 ) ||
+                ( !vars.isSMSGGSonic2 && vars.watchers["trigger"].Current == 0x04 && vars.watchers["trigger"].Old == 0x0 )
+            ) {
                 reset = true;
             }
             var currentlevel = String.Format("{0}-{1}", vars.watchers["zone"].Current, vars.watchers["act"].Current);
