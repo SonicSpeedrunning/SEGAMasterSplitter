@@ -71,6 +71,21 @@ init
         vars.livesplitGameName = vars.gamename;
         switch ( (string) vars.gamename ) {
             /**********************************************************************************
+                START Alex Kidd in Miracle World watchlist
+            **********************************************************************************/
+            case "Alex Kidd in Miracle World":
+                if ( isFusion ) {
+                    memoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)smsOffset) ) + (int) 0xC000;
+                }
+                vars.watchers = new MemoryWatcherList
+                {
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x0023     ) { Name = "level" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x03C1     ) { Name = "trigger" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x0025     ) { Name = "lives" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1800     ) { Name = "complete" },
+                };
+                break;
+            /**********************************************************************************
                 START Sonic 3D Blast Memory watchlist
             **********************************************************************************/
             case "Sonic 3D Blast":
@@ -439,6 +454,31 @@ update
     }
 
     switch ( (string) vars.gamename ) {
+        /**********************************************************************************
+            START Alex Kidd in Miracle World Support
+        **********************************************************************************/
+        case "Alex Kidd in Miracle World":
+            if ( !vars.ingame && vars.watchers["level"].Current == 1 && vars.watchers["trigger"].Current == 1 ) {
+                // Have control so start timer
+                start = true;
+                vars.nextsplit = 2;
+            }
+
+            if ( vars.ingame ) {
+                if ( (
+                    vars.watchers["level"].Current == vars.nextsplit
+                    ) ||
+                    vars.watchers["level"].Current == 17 && vars.watchers["complete"].Current ==1
+                ) {
+                    vars.nextsplit++;
+                    // Have control so start timer
+                    split = true;
+                }
+                if ( vars.watchers["lives"].Current == 0 && vars.watchers["level"].Current == 0) {
+                    reset = true;
+                }
+            }
+            break;
         /**********************************************************************************
             START Sonic 3D Blast Support
         **********************************************************************************/
