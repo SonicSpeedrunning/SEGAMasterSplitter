@@ -633,7 +633,7 @@ update
                 vars.nextsplit = vars.expectednextlevel[currentlevel];
                 vars.DebugOutput("Next Split on: " + vars.nextsplit);
                 if(vars.isGenSonic1 && vars.watchers["act"].Current == 2 && vars.watchers["zone"].Current == 5) {
-                    vars.pause = true; //the timer keeps counting for 3 seconds at the start of final zone, as SB3 doesn't pause the timer
+                    vars.loading = true; //the timer keeps counting for 3 seconds at the start of final zone, as SB3 doesn't pause the timer
                 }
                 split = true;
             }
