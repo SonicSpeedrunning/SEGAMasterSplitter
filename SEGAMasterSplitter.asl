@@ -324,9 +324,8 @@ init
                     new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1203     ) { Name = "input" },
                     new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12D5     ) { Name = "endBoss" },
                     new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x122C     ) { Name = "scorescreen" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1FEA     ) { Name = "scorescd" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1FEA     ) { Name = "scorescd" },
                     new MemoryWatcher<int >(  (IntPtr)smsMemoryOffset +  0x1212   ) { Name = "timebonus" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1C08   ) { Name = "menucheck1" },
                     new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1C08   ) { Name = "menucheck1" },
                     new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1C0A   ) { Name = "menucheck2" },
                 };
@@ -890,7 +889,8 @@ update
             if ( vars.watchers["menucheck1"].Current == 5 && vars.watchers["menucheck1"].Old <= 1 && vars.watchers["menucheck2"].Current == 4 && vars.watchers["menucheck2"].Old <= 1 ) {
                 reset = true;
             }
-            if ( !!vars.ingame && vars.watchers["state"].Old == 128 && vars.watchers["state"].Current == 224 && vars.watchers["level"].Current == 0 && vars.watchers["input"].Current != 255) {
+
+            if ( !vars.ingame && vars.watchers["state"].Old == 128 && vars.watchers["state"].Current == 224 && vars.watchers["level"].Current == 0 && vars.watchers["input"].Current != 255) {
                 vars.DebugOutput(String.Format("Split Start of Level {0}", vars.watchers["level"].Current));
                 start = true;
             }
