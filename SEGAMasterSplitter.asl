@@ -9,17 +9,23 @@ state("Fusion") {}
 state("gens") {}
 state("SEGAGameRoom") {}
 state("SEGAGenesisClassics") {}
+// state("emuhawk") {} // uncommment to enable experimental BizHawk SMS support
 
 init
 {
-    long memoryOffset;
+    vars.gamename = timer.Run.GameName;
+    vars.livesplitGameName = vars.gamename;
+    vars.isBizHawk = false;
+    long memoryOffset = 0;
+    long smsMemoryOffset = 0;
     IntPtr baseAddress;
+    IntPtr injectionMem = (IntPtr) 0;
+
     long genOffset = 0;
     long smsOffset = 0;
     baseAddress = modules.First().BaseAddress;
     bool isBigEndian = false;
     bool isFusion = false;
-
     switch ( game.ProcessName.ToLower() ) {
         case "retroarch":
             long gpgxOffset = 0x01AF84;
@@ -33,6 +39,7 @@ init
             genOffset = 0x40F5C;
             break;
         case "fusion":
+            
             genOffset = 0x2A52D4;
             smsOffset = 0x2A52D8;
             isBigEndian = true;
@@ -45,12 +52,32 @@ init
         case "segagenesisclassics":
             genOffset = 0x71704;
             break;
+        case "emuhawk":
+            // game == Bizhawk process
+            vars.isBizHawk = true;
+            
+            memoryOffset = vars.BizHawksetup( game, memory );
+
+            break;
 
     }
-    memoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)genOffset) );
+    if ( !vars.isBizHawk ) {
+        memoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)genOffset) );
+    }
+    smsMemoryOffset = memoryOffset;
+
+    if ( isFusion ) {
+        smsMemoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)smsOffset) ) + (int) 0xC000;
+    }
+
+    if ( memoryOffset == 0 && ( !isFusion || smsMemoryOffset == 0xC000 ) ) {
+        throw new NullReferenceException (String.Format("Memory offset not yet found. Base Address: 0x{0:X}", (long) baseAddress ));
+        Thread.Sleep(500);
+    }
+
+    vars.DebugOutput(String.Format("memory should start at {0:X}", memoryOffset));
+    vars.DebugOutput(String.Format("SMS memory should start at {0:X}", smsMemoryOffset));
     vars.isBigEndian = isBigEndian;
-    vars.gamename = timer.Run.GameName;
-    vars.livesplitGameName = vars.gamename;
     Action reInitialise = () => {
         vars.isIGT = false;
         vars.loading = false;
@@ -74,15 +101,12 @@ init
                 START Alex Kidd in Miracle World watchlist
             **********************************************************************************/
             case "Alex Kidd in Miracle World":
-                if ( isFusion ) {
-                    memoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)smsOffset) ) + (int) 0xC000;
-                }
                 vars.watchers = new MemoryWatcherList
                 {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x0023     ) { Name = "level" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x03C1     ) { Name = "trigger" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x0025     ) { Name = "lives" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1800     ) { Name = "complete" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x0023     ) { Name = "level" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x03C1     ) { Name = "trigger" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x0025     ) { Name = "lives" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1800     ) { Name = "complete" },
                 };
                 break;
             /**********************************************************************************
@@ -293,20 +317,18 @@ init
                 START Sonic the Hedgehog (Master System) watchlist
             **********************************************************************************/
             case "Sonic the Hedgehog (Master System)":
-                if ( isFusion ) {
-                    memoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)smsOffset) ) + (int) 0xC000;
-                }
                 vars.watchers = new MemoryWatcherList
                 {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x123E     ) { Name = "level" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1000     ) { Name = "state" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1203     ) { Name = "input" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x12D5     ) { Name = "endBoss" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x122C     ) { Name = "scorescreen" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x123E     ) { Name = "level" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1000     ) { Name = "state" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1203     ) { Name = "input" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12D5     ) { Name = "endBoss" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x122C     ) { Name = "scorescreen" },
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1FEA     ) { Name = "scorescd" },
-                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset +  0x1213   ) { Name = "timebonus" },
+                    new MemoryWatcher<int >(  (IntPtr)smsMemoryOffset +  0x1212   ) { Name = "timebonus" },
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1C08   ) { Name = "menucheck1" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1C0A   ) { Name = "menucheck2" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1C08   ) { Name = "menucheck1" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1C0A   ) { Name = "menucheck2" },
                 };
                 
                 break;
@@ -314,27 +336,25 @@ init
                 START Sonic the Hedgehog (Game Gear / Master System) watchlist
             **********************************************************************************/
             case "Sonic the Hedgehog 2 (Game Gear / Master System)":
-                if ( isFusion ) {
-                    memoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)smsOffset) ) + (int) 0xC000;
-                }
+
                 vars.levelselectbytes = new byte[] {0x0D};
-                vars.levelselectoffset = (IntPtr) memoryOffset + 0x112C;
-                vars.emeraldcountoffset = (IntPtr) memoryOffset + 0x12BD;
-                vars.emeraldflagsoffset = (IntPtr) memoryOffset + 0x12C5;
+                vars.levelselectoffset = (IntPtr) smsMemoryOffset + 0x112C;
+                vars.emeraldcountoffset = (IntPtr) smsMemoryOffset + 0x12BD;
+                vars.emeraldflagsoffset = (IntPtr) smsMemoryOffset + 0x12C5;
                 vars.startTrigger = 68;
                 vars.isSMSGGSonic2 = true;
                 vars.watchers = new MemoryWatcherList
                 {
 
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x12B9     ) { Name = "seconds" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x12BA    ) { Name = "minutes" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1298     ) { Name = "lives" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1298 /* for simplicity */    ) { Name = "continues" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1295    ) { Name = "zone" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1296     ) { Name = "act" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0x1293     ) { Name = "trigger" },
-                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + 0x12B9  /* for simplicity */  ) { Name = "levelframecount" },
-                    new MemoryWatcher<byte>( (IntPtr)memoryOffset + 0x12C8     ) { Name = "systemflag" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12B9     ) { Name = "seconds" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12BA    ) { Name = "minutes" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1298     ) { Name = "lives" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1298 /* for simplicity */    ) { Name = "continues" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1295    ) { Name = "zone" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1296     ) { Name = "act" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1293     ) { Name = "trigger" },
+                    new MemoryWatcher<ushort>(  (IntPtr)smsMemoryOffset + 0x12B9  /* for simplicity */  ) { Name = "levelframecount" },
+                    new MemoryWatcher<byte>( (IntPtr)smsMemoryOffset + 0x12C8     ) { Name = "systemflag" },
                     new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
                     new MemoryWatcher<byte>(  vars.emeraldcountoffset     ) { Name = "emeraldcount" },
                     new MemoryWatcher<byte>(  vars.emeraldflagsoffset     ) { Name = "emeraldflags" },
@@ -402,7 +422,6 @@ init
 
 update
 {
-
     if ( vars.livesplitGameName != timer.Run.GameName ) {
         vars.DebugOutput("Game in Livesplit changed, reinitialising...");
         vars.gamename = timer.Run.GameName;
@@ -624,7 +643,7 @@ update
             }
             if ( 
                 ( !settings["levelselect"] && vars.watchers["lives"].Current == 0 && vars.watchers["continues"].Current == 0 ) ||
-                ( !vars.isSMSGGSonic2 && vars.watchers["trigger"].Current == 0x04 && vars.watchers["trigger"].Old == 0x0 )
+                ( !vars.isSMSGGSonic2 && vars.watchers["trigger"].Current == 0x04 && vars.watchers["trigger"].Old == 0x0 ) 
             ) {
                 reset = true;
             }
@@ -669,7 +688,7 @@ update
                     vars.igttotal++;
                 }
             }
-            else if (vars.watchers["levelframecount"].Current == 0 && vars.watchers["seconds"].Current == 0 && vars.watchers["minutes"].Current == 0) {
+            else if ( vars.watchers["levelframecount"].Current == 0 && vars.watchers["seconds"].Current == 0 && vars.watchers["minutes"].Current == 0) {
                  vars.loading = false; //unpause timer once game time has reset
             }
             gametime = TimeSpan.FromSeconds(vars.igttotal);
@@ -915,19 +934,11 @@ update
 
 startup
 {
-    Action<string> DebugOutput = (text) => {
-        print("[SEGA Master Splitter] "+text);
-    };
+    string logfile = Directory.GetCurrentDirectory() + "\\SEGAMasterSplitter.log";
+    if ( File.Exists( logfile ) ) {
+        File.Delete( logfile );
+    }
 
-    Action<ExpandoObject> DebugOutputExpando = (ExpandoObject dynamicObject) => {
-            var dynamicDictionary = dynamicObject as IDictionary<string, object>;
-         
-            foreach(KeyValuePair<string, object> property in dynamicDictionary)
-            {
-                DebugOutput(String.Format("{0}: {1}", property.Key, property.Value.ToString()));
-            }
-            DebugOutput("");
-    };
 
     Func<ushort,ushort> SwapEndianness = (ushort value) => {
         var b1 = (value >> 0) & 0xff;
@@ -935,10 +946,193 @@ startup
 
         return (ushort) (b1 << 8 | b2 << 0);
     };
+
+    vars.LookUp = (Func<Process, SigScanTarget, IntPtr>)((proc, target) =>
+    {
+        vars.DebugOutput("Scanning memory");
+
+        IntPtr result = IntPtr.Zero;
+        foreach (var page in proc.MemoryPages())
+        {
+            var scanner = new SignatureScanner(proc, page.BaseAddress, (int)page.RegionSize);
+            if ((result = scanner.Scan(target)) != IntPtr.Zero)
+                break;
+        }
+
+        return result;
+    });
+
+
+
+    vars.BizHawksetup = (Func<Process, Process, long>)((thegame, mem) => {
+            long memoryOffset = 0;
+            long scanOffset = 0;
+            long injectionMem = (long) thegame.AllocateMemory( 0x70 );
+            SigScanTarget target;
+            if ( thegame.Is64Bit() ) {
+                vars.DebugOutput("64bit Bizhawk");
+                /***************************
+                * 64 bit Bizhawk
+                ********************/
+                target = new SigScanTarget(0, "53 48 83 EC 20 48 8B F1 41 8B F8 0F B7 DA 81 FB 00 C0 00 00 7C 25 48 8B 46 28 8B D3 81 E2 FF 1F 00 00 3B 50 08 0F 83 64 01 00 00");
+                scanOffset = (long) vars.LookUp(thegame, target);
+                if ( scanOffset != 0 ) {
+                    vars.DebugOutput("Memory Found");
+                } else {
+                    Thread.Sleep(500);
+                    throw new NullReferenceException (String.Format("BizHawk Memory not found. {0}", scanOffset ));
+                    
+                }
+                
+                
+                var originalCode = new List<byte>() {
+                    0x48, 0x8B, 0x46, 0x28,                     // mov rax,[rsi+28]
+                    0x8B, 0xD3,                                 // mov edx,ebx
+                    0x81, 0xE2, 0xFF, 0x1F, 0x00, 0x00,         // and edx,00001FFF
+                    0x3B, 0x50, 0x08,                           // cmp edx,[rax+08]
+                    0x0F, 0x83, 0x64, 0x01, 0x00, 0x00,         // jae SMS::WriteMemorySega+191 
+                    0x48, 0x63, 0xD2                            // movsxd rdx, edx
+                };
+
+                var injectionCode = new List<byte>() {
+                    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+                    0x58,                                       // pop rax
+                    0x48, 0x8B, 0x46, 0x28,                     // mov rax,[rsi+28]
+                    0x48, 0xA3, /* injectionMem ref (17) */     // mov [injectionMem],rax
+                    0x50,                                       // push rax
+                    0x8B, 0xD3,                                 // mov edx,ebx
+                    0x81, 0xE2, 0xFF, 0x1F, 0x00, 0x00,         // and edx,00001FFF
+                    0x3B, 0x50, 0x08,                           // cmp edx,[rax+08]
+                    0x72, 0x0C,                                 // jb
+                    0x48, 0xB8,  /* scanOffset + 0x18F (33) */  // mov rax, [scanOffset + 0x18F]
+                    0xFF, 0xE0,                                 // jmp rax
+                    0x48, 0xB8,  /* scanOffset + 0x2A (37) */   // mov rax, [scanOffset + 0x2A]
+                    0xFF, 0xE0,                                 // jmp rax
+                };
+
+
+                injectionCode.InsertRange( 37, BitConverter.GetBytes( (long) scanOffset + 0x2A  ) );
+                injectionCode.InsertRange( 33, BitConverter.GetBytes( (long) scanOffset + 0x18F ) );
+                injectionCode.InsertRange( 17, BitConverter.GetBytes( (long) injectionMem       ) );
+
+                thegame.Suspend();
+                vars.DebugOutput("start praying...");
+
+
+                var replacementjump = new List<byte>() {
+                    0x50,                                       // push rax
+                    0x48, 0xB8,  /* injectionMem + 0x0A (3) */  // mov rax, [injectionMem + 0x0A]
+                    0xFF, 0xE0,                                 // jmp rax
+                    0x90, 0x90, 0x90, 0x90,                     // nop x 8
+                    0x90, 0x90, 0x90, 0x90,  
+                    0x58,                                       // pop rax
+                };
+                replacementjump.InsertRange( 3, BitConverter.GetBytes( (long) injectionMem + 0x0A ) );
+                vars.DebugOutput( String.Format( "To write (code injected at {0:X}): " + BitConverter.ToString( injectionCode.ToArray() ), (long) injectionMem ) );
+                vars.DebugOutput( String.Format( "To write (replacement jump at {0:X}): " + BitConverter.ToString( replacementjump.ToArray() ), (long) scanOffset + 0x16 ) );
+                
+                mem.WriteBytes( new IntPtr(injectionMem), injectionCode.ToArray() );
+                vars.DebugOutput(String.Format("Memory for injection written at: {0:X}", (long) injectionMem));
+                mem.WriteBytes( new IntPtr(scanOffset + 0x16), replacementjump.ToArray() );
+                
+                
+                thegame.Resume();
+                
+                var count = 0;
+                vars.DebugOutput("Waiting for core to write to memory");
+                long oldMemoryOffset = memoryOffset + 0x20;
+                while ( oldMemoryOffset != memoryOffset ) {
+                    if ( count > 1 ) {
+                        oldMemoryOffset = memoryOffset;
+                    }
+                    Thread.Sleep(500);
+                    memoryOffset = mem.ReadValue<long>(new IntPtr( injectionMem ) ) + 0x10;
+                    count++;
+                    if ( count > 50 ) {
+                        throw new NullReferenceException (String.Format("Genesis/SMS Memory not found. {0}", memoryOffset ));
+                    }
+                }
+                vars.DebugOutput("Writing back old code");
+                thegame.Suspend();
+                thegame.WriteBytes( new IntPtr( scanOffset + 0x16 ), originalCode.ToArray() );
+
+                thegame.Resume();
+            } else {
+                /***************************
+                * 32 bit Bizhawk
+                ********************/
+                vars.DebugOutput("32bit Bizhawk");
+                target = new SigScanTarget(0, "55 8B EC 57 56 53 50 8B F1 8B 5D 08 0F B7 FA 81 FF 00 C0 00 00 7C 1C 8B C7 25 FF 1F 00 00 8B 56 28 3B 42 04 0F 83 38 01 00 00");
+                scanOffset = (long) vars.LookUp( thegame, target );
+                if ( scanOffset == 0) {
+                    Thread.Sleep(500);
+                    throw new NullReferenceException (String.Format("BizHawk Memory not found. {0}", (long) scanOffset ));
+                    
+                }
+                var originalCode = new List<byte>() {
+                    0x8B, 0xC7,                                 // mov eax,edi
+                    0x25, 0xFF, 0x1F, 0x0, 0x0,                 // and eax,00001FFF
+                    0x8B, 0x56, 0x28,                           // mov edx, [esi+28]
+                };
+                var injectionCode = new List<byte>() {
+                    0x89, 0x15,                                 // mov [injectionMem + 0x15], edx
+                    0xE9,  /* see right */                      // jmp ( scanOffset + 0x21 ) - ( injectionMem + 0x15 )
+                    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+                };
+
+                injectionCode.InsertRange( 0, originalCode );
+                injectionCode.InsertRange( 13, BitConverter.GetBytes( ( (int) scanOffset + 0x21 ) - ( (int) injectionMem + 0x15 ) ) );
+                injectionCode.InsertRange( 12, BitConverter.GetBytes( (int) injectionMem + 0x15 ) );
+
+                thegame.Suspend();
+                vars.DebugOutput("start praying...");
+
+                var replacementjump = new List<byte>() {
+                    0xE9, /* see right */               // jmp [injectionMem  - ( scanOffset + 0x1C )]
+                    0x90, 0x90, 0x90, 0x90, 0x90,       // nop x 5
+                };
+
+
+                replacementjump.InsertRange( 1, BitConverter.GetBytes( ( (int) injectionMem ) - ( (int) scanOffset + 0x1C ) ) );
+
+                thegame.WriteBytes( new IntPtr( injectionMem ), injectionCode.ToArray());
+                thegame.WriteBytes( new IntPtr( scanOffset + 0x17 ), replacementjump.ToArray() );
+                
+                vars.DebugOutput(String.Format("Memory for injection written at: {0:X}", (int) injectionMem));
+                vars.DebugOutput(String.Format("WriteSegaMemory Found at: {0:X}",  scanOffset ));
+                thegame.Resume();
+                
+                var count = 0;
+                vars.DebugOutput("Waiting for core to write to memory");
+                long oldMemoryOffset = memoryOffset + 0x20;
+                while ( oldMemoryOffset != memoryOffset ) {
+                    if ( count > 1 ) {
+                        oldMemoryOffset = memoryOffset;
+                    }
+                    Thread.Sleep(500);
+                    memoryOffset = mem.ReadValue<long>( new IntPtr( injectionMem + 0x15 ) ) + 0x08;
+                    count++;
+                    if ( count > 50 ) {
+                        throw new NullReferenceException (String.Format("Genesis/SMS Memory not found. {0}", memoryOffset ));
+                    }
+                }
+
+
+                vars.DebugOutput("Writing back old code");
+                thegame.Suspend();
+                thegame.WriteBytes( new IntPtr( scanOffset + 0x17 ), originalCode.ToArray() );
+
+                thegame.Resume();
+
+            }
+            return memoryOffset;
+
+    });
+
+
+
     vars.SwapEndianness = SwapEndianness;
-    vars.DebugOutput = DebugOutput;
-    vars.DebugOutputExpando = DebugOutputExpando;
-    
+
     refreshRate = 60;
 
     /* S3K settings */
@@ -962,11 +1156,35 @@ startup
     settings.Add("ss", true, "Settings for Sonic Spinball (Genesis / Mega Drive)");
     settings.Add("ss_multiball", false, "Split on entry & exit of multiball stages", "ss");
     settings.SetToolTip("ss_multiball", "If checked, will split on entry and exit of extra bonus stages for Max Jackpot Bonus.");
-    /* Debug Settings */
 
+    /* Debug Settings */
     settings.Add("debug", false, "Debugging Options");
     settings.Add("levelselect", false, "Enable Level Select (if supported)", "debug");
     settings.Add("s2smsallemeralds", false, "S2SMS Enable All Emeralds", "debug");
+
+    Action<string> DebugOutput = (text) => {
+        print("[SEGA Master Splitter] "+text);
+        string time = System.DateTime.Now.ToString("dd/mm/yy hh:mm:ss:fff");
+        File.AppendAllText(logfile, "[" + time + "]: " + text + "\r\n");
+        
+    };
+
+    Action<ExpandoObject> DebugOutputExpando = (ExpandoObject dynamicObject) => {
+            var dynamicDictionary = dynamicObject as IDictionary<string, object>;
+         
+            foreach(KeyValuePair<string, object> property in dynamicDictionary)
+            {
+                DebugOutput(String.Format("{0}: {1}", property.Key, property.Value.ToString()));
+            }
+            DebugOutput("");
+    };
+
+
+
+    vars.DebugOutput = DebugOutput;
+    vars.DebugOutputExpando = DebugOutputExpando;
+    
+
 }
 
 
