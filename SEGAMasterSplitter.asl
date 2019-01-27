@@ -90,8 +90,10 @@ init
         vars.isGenSonic1or2 = false;
         vars.isS3K = false;
         vars.isSMSGGSonic2 = false;
+        vars.isSonicChaos = false;
         vars.nextsplit = "";
         vars.startTrigger = 0x8C;
+        vars.splitInXFrames = -1;
         vars.levelselectbytes = new byte[] {0x01}; // Default as most are 0 - off, 1 - on
         IDictionary<string, string> expectednextlevel = new Dictionary<string, string>();
         vars.nextzonemap = false;
@@ -408,6 +410,80 @@ init
                 expectednextlevel[S2SMS_GOOD_CREDITS] = S2SMS_END;
                 vars.expectednextlevel = expectednextlevel;
                 break;
+            /**********************************************************************************
+                START Sonic Chaos watchlist
+            **********************************************************************************/
+            case "Sonic Chaos":
+
+                byte chaosPlatform = memory.ReadValue<byte>((IntPtr) smsMemoryOffset + 0x111E );
+                byte extraGGOffset = 0x0;
+                switch( chaosPlatform ) {
+                    case 0x06: 
+                        extraGGOffset = 0x02;
+                        break;
+                    case 0x26:
+                        // Master System
+                        break;
+                    default:
+                        Thread.Sleep(500);
+                        throw new NullReferenceException (String.Format("Can't Determine platform for Sonic Chaos {0}", chaosPlatform ));
+                }
+
+                vars.levelselectoffset = (IntPtr) smsMemoryOffset + 0x12CE + extraGGOffset;
+                vars.watchers = new MemoryWatcherList
+                {
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12C9 + extraGGOffset    ) { Name = "level" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1297 + extraGGOffset    ) { Name = "zone" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1298 + extraGGOffset    ) { Name = "act" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1299 + extraGGOffset    ) { Name = "lives" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12C3 + extraGGOffset    ) { Name = "continues" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x13E7     ) { Name = "endBoss" },
+                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x03C1     ) { Name = "trigger" },
+                    new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
+                };
+
+                const string TURQUOISE_HILL_1 = "0-0";
+                const string TURQUOISE_HILL_2 = "0-1";
+                const string TURQUOISE_HILL_3 = "0-2";
+                const string GIGALOPOLIS_1 = "1-0";
+                const string GIGALOPOLIS_2 = "1-1";
+                const string GIGALOPOLIS_3 = "1-2";
+                const string SLEEPING_EGG_1 = "2-0";
+                const string SLEEPING_EGG_2 = "2-1";
+                const string SLEEPING_EGG_3 = "2-2";
+                const string MECHA_GREEN_HILL_1 = "3-0";
+                const string MECHA_GREEN_HILL_2 = "3-1";
+                const string MECHA_GREEN_HILL_3 = "3-2";
+                const string AQUA_PLANET_1 = "4-0";
+                const string AQUA_PLANET_2 = "4-1";
+                const string AQUA_PLANET_3 = "4-2";
+                const string ELECTRIC_EGG_1 = "5-0";
+                const string ELECTRIC_EGG_2 = "5-1";
+                const string ELECTRIC_EGG_3 = "5-2";
+                const string AFTER_ELECTRIC_EGG_3 = "99-0";
+                expectednextlevel.Clear();
+                expectednextlevel[TURQUOISE_HILL_1] = TURQUOISE_HILL_2;
+                expectednextlevel[TURQUOISE_HILL_2] = TURQUOISE_HILL_3;
+                expectednextlevel[TURQUOISE_HILL_3] = GIGALOPOLIS_1;
+                expectednextlevel[GIGALOPOLIS_1] = GIGALOPOLIS_2;
+                expectednextlevel[GIGALOPOLIS_2] = GIGALOPOLIS_3;
+                expectednextlevel[GIGALOPOLIS_3] = SLEEPING_EGG_1;
+                expectednextlevel[SLEEPING_EGG_1] = SLEEPING_EGG_2;
+                expectednextlevel[SLEEPING_EGG_2] = SLEEPING_EGG_3;
+                expectednextlevel[SLEEPING_EGG_3] = MECHA_GREEN_HILL_1;
+                expectednextlevel[MECHA_GREEN_HILL_1] = MECHA_GREEN_HILL_2;
+                expectednextlevel[MECHA_GREEN_HILL_2] = MECHA_GREEN_HILL_3;
+                expectednextlevel[MECHA_GREEN_HILL_3] = AQUA_PLANET_1;
+                expectednextlevel[AQUA_PLANET_1] = AQUA_PLANET_2;
+                expectednextlevel[AQUA_PLANET_2] = AQUA_PLANET_3;
+                expectednextlevel[AQUA_PLANET_3] = ELECTRIC_EGG_1;
+                expectednextlevel[ELECTRIC_EGG_1] = ELECTRIC_EGG_2;
+                expectednextlevel[ELECTRIC_EGG_2] = ELECTRIC_EGG_3;
+                expectednextlevel[ELECTRIC_EGG_3] = AFTER_ELECTRIC_EGG_3;
+
+                vars.isSonicChaos = true;
+                vars.expectednextlevel = expectednextlevel;
+                break;
             default:
                 throw new NullReferenceException (String.Format("Game {0} not supported.", vars.gamename ));
         
@@ -431,6 +507,13 @@ update
     var start = false;
     var split = false;
     var reset = false;
+
+    if ( vars.splitInXFrames == 0 ) {
+        vars.splitInXFrames = -1;
+        split = true;
+    } else if ( vars.splitInXFrames > 0 ) {
+        vars.splitInXFrames--;
+    }
 
     if ( !vars.ingame && timer.CurrentPhase == TimerPhase.Running) {
         //pressed start run or autostarted run
@@ -618,10 +701,18 @@ update
         case "Sonic the Hedgehog (Genesis / Mega Drive)":
         case "Sonic the Hedgehog 2 (Genesis / Mega Drive)":
         case "Sonic the Hedgehog 2 (Game Gear / Master System)":
-            if ( !vars.ingame && vars.watchers["trigger"].Current == vars.startTrigger && vars.watchers["act"].Current == 0 && vars.watchers["zone"].Current == 0 ) {
+        case "Sonic Chaos":
+            if ( !vars.ingame && 
+                ( 
+                    ( !vars.isSonicChaos && vars.watchers["trigger"].Current == vars.startTrigger ) ||
+                    ( vars.isSonicChaos && ( vars.watchers["lives"].Old == 0 && vars.watchers["lives"].Current >= 3 ) )
+                 ) && 
+                vars.watchers["act"].Current == 0 && 
+                vars.watchers["zone"].Current == 0 
+            ) {
                 vars.nextsplit = "0-1"; // EMERALD_HILL_2 or GREEN_HILL_2 or UNDER_GROUND_2
                 start = true;
-                vars.loading = true;
+                vars.loading = !vars.isSonicChaos;
                 vars.igttotal = 0;
                 
             }
@@ -658,6 +749,9 @@ update
             if ( vars.isSMSGGSonic2 && currentlevel == "7-0" && vars.nextsplit == "6-0") {
                 split = true;
             }
+            if ( vars.isSonicChaos && currentlevel == "5-2" && vars.watchers["endBoss"].Current == 255 && vars.splitInXFrames == -1) {
+                vars.splitInXFrames = 3;
+            }
             if ( 
                 vars.nextsplit == "99-0" && (
                     ( vars.isGenSonic1 && vars.watchers["trigger"].Current == 0x18 ) ||
@@ -667,7 +761,9 @@ update
             )  {
                 split = true;
             }
-
+            if ( !vars.isIGT ) {
+                break;
+            }
             if ( vars.ingame && !vars.loading ) {
                 var oldSeconds = vars.watchers["seconds"].Old;
                 var curSeconds = vars.watchers["seconds"].Current;
