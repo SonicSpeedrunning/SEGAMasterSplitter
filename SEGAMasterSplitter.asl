@@ -337,7 +337,8 @@ init
                 START Sonic the Hedgehog (Game Gear / Master System) watchlist
             **********************************************************************************/
             case "Sonic the Hedgehog 2 (Game Gear / Master System)":
-
+            case "Sonic 2 Rebirth":
+                vars.gamename = "Sonic the Hedgehog 2 (Game Gear / Master System)";
                 vars.levelselectbytes = new byte[] {0x0D};
                 vars.levelselectoffset = (IntPtr) smsMemoryOffset + 0x112C;
                 vars.emeraldcountoffset = (IntPtr) smsMemoryOffset + 0x12BD;
