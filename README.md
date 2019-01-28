@@ -21,6 +21,7 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 * Alex Kidd in Miracle World
 * Sonic the Hedgehog 1 (Master System)
 * Sonic the Hedgehog 2 (Game Gear / Master System)
+* Sonic 2 Rebirth
 * Sonic Chaos
 
 ## Timing Methods
