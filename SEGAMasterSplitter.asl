@@ -733,8 +733,11 @@ update
                 }
             }
             if ( 
-                ( !settings["levelselect"] && vars.watchers["lives"].Current == 0 && vars.watchers["continues"].Current == 0 ) ||
-                ( !vars.isSMSGGSonic2 && vars.watchers["trigger"].Current == 0x04 && vars.watchers["trigger"].Old == 0x0 ) 
+                !settings["levelselect"] &&
+                (
+                    (  vars.watchers["lives"].Current == 0 && vars.watchers["continues"].Current == 0 ) ||
+                    ( !vars.isSMSGGSonic2 && vars.watchers["trigger"].Current == 0x04 && vars.watchers["trigger"].Old == 0x0 ) 
+                )
             ) {
                 reset = true;
             }
@@ -742,10 +745,8 @@ update
             if ( vars.nextsplit == currentlevel ) {
                 vars.nextsplit = vars.expectednextlevel[currentlevel];
                 vars.DebugOutput("Next Split on: " + vars.nextsplit);
-                if(vars.isGenSonic1 && vars.watchers["act"].Current == 2 && vars.watchers["zone"].Current == 5) {
-                    vars.loading = true; //the timer keeps counting for 3 seconds at the start of final zone, as SB3 doesn't pause the timer
-                }
                 split = true;
+                
             }
             if ( vars.isSMSGGSonic2 && currentlevel == "7-0" && vars.nextsplit == "6-0") {
                 split = true;
@@ -786,6 +787,10 @@ update
             }
             else if ( vars.watchers["levelframecount"].Current == 0 && vars.watchers["seconds"].Current == 0 && vars.watchers["minutes"].Current == 0) {
                  vars.loading = false; //unpause timer once game time has reset
+            }
+            if ( start || split ) {
+                // pause to wait until the stage actually starts, to fix S1 issues like SB3->FZ
+                vars.loading = !vars.isSonicChaos;
             }
             gametime = TimeSpan.FromSeconds(vars.igttotal);
             break;
