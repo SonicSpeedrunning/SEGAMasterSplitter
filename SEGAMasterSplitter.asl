@@ -157,7 +157,7 @@ init
             case "Sonic the Hedgehog":
             case "Sonic 1": 
             case "Sonic 1 (Genesis)":
-            case "Sonic 1 (Meaga Drive)":
+            case "Sonic 1 (Mega Drive)":
                 vars.gamename = "Sonic the Hedgehog (Genesis / Mega Drive)";
             
                 const string GREEN_HILL_1 = "0-0";
@@ -713,7 +713,6 @@ update
             ) {
                 vars.nextsplit = "0-1"; // EMERALD_HILL_2 or GREEN_HILL_2 or UNDER_GROUND_2
                 start = true;
-                vars.loading = !vars.isSonicChaos;
                 vars.igttotal = 0;
                 
             }
