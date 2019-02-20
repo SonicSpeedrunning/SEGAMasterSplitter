@@ -26,14 +26,23 @@ init
     baseAddress = modules.First().BaseAddress;
     bool isBigEndian = false;
     bool isFusion = false;
+    
     switch ( game.ProcessName.ToLower() ) {
         case "retroarch":
-            long gpgxOffset = 0x01AF84;
+            ProcessModuleWow64Safe gpgx = modules.Where(m => m.ModuleName == "genesis_plus_gx_libretro.dll").First();
+            baseAddress = gpgx.BaseAddress;
             if ( game.Is64Bit() ) {
-                gpgxOffset = 0x24A3D0;
+                SigScanTarget target = new SigScanTarget(0, "85 C9 74 11 83 F9 02 B8 00 00 00 00 48 0F 44 05 ?? ?? ?? ?? C3 48 8B 05 ?? ?? ?? ?? 80 78 01 00 74 0E 48 8B 40 10 C3");
+                IntPtr codeOffset = vars.LookUpInDLL( game, gpgx, target );
+                long memoryReference = memory.ReadValue<int>( codeOffset + 0x10 );
+                long refLocation = ( (long ) codeOffset + 0x14 + memoryReference );
+                memoryOffset = memory.ReadValue<int>( (IntPtr) refLocation );
+            } else {
+                SigScanTarget target = new SigScanTarget(0, "8B 44 24 04 85 C0 74 18 83 F8 02 BA 00 00 00 00 B8 ?? ?? ?? ?? 0F 45 C2 C3 8D B4 26 00 00 00 00");
+                IntPtr codeOffset = vars.LookUpInDLL( game, gpgx, target );
+                long memoryReference = memory.ReadValue<int>( codeOffset + 0x11 );
+                memoryOffset = memoryReference;
             }
-            baseAddress = modules.Where(m => m.ModuleName == "genesis_plus_gx_libretro.dll").First().BaseAddress;
-            genOffset = gpgxOffset;
             break;
         case "gens":
             genOffset = 0x40F5C;
@@ -55,13 +64,11 @@ init
         case "emuhawk":
             // game == Bizhawk process
             vars.isBizHawk = true;
-            
             memoryOffset = vars.BizHawksetup( game, memory );
-
             break;
 
     }
-    if ( !vars.isBizHawk ) {
+    if ( genOffset > 0 ) {
         memoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)genOffset) );
     }
     smsMemoryOffset = memoryOffset;
@@ -1063,6 +1070,15 @@ startup
         return result;
     });
 
+    vars.LookUpInDLL = (Func<Process, ProcessModuleWow64Safe, SigScanTarget, IntPtr>)((proc, dll, target) =>
+    {
+        vars.DebugOutput("Scanning memory");
+
+        IntPtr result = IntPtr.Zero;
+        var scanner = new SignatureScanner(proc, dll.BaseAddress, (int)dll.ModuleMemorySize);
+        result = scanner.Scan(target);
+        return result;
+    });
 
 
     vars.BizHawksetup = (Func<Process, Process, long>)((thegame, mem) => {
