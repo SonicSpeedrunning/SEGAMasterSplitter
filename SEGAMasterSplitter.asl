@@ -96,6 +96,7 @@ init
         vars.isGenSonic1 = false;
         vars.isGenSonic1or2 = false;
         vars.isS3K = false;
+        vars.isSK = false;
         vars.isSMSGGSonic2 = false;
         vars.isSonicChaos = false;
         vars.nextsplit = "";
@@ -286,6 +287,10 @@ init
             /**********************************************************************************
                 START Sonic the Hedgehog 3 & Knuckles watchlist
             **********************************************************************************/
+            case "Sonic & Knuckles":
+            case "Sonic and Knuckles":
+                vars.isSK = true;
+                goto case "Sonic 3 & Knuckles";
             case "Sonic 3 & Knuckles":
             case "Sonic 3 and Knuckles":
             case "Sonic 3 Complete":
@@ -534,7 +539,9 @@ update
         }
 
         if ( vars.isS3K ) {
+            if ( vars.nextzone != 7 ) {
             vars.nextzone = 0;
+            }
             vars.nextact = 1;
             vars.dez2split = false;
             vars.ddzsplit = false;
@@ -804,8 +811,9 @@ update
             START Sonic the Hedgehog 3 & Knuckles watchlist
         **********************************************************************************/
             case "Sonic 3 & Knuckles":
-                if (!vars.ingame && vars.watchers["trigger"].Current == 0x8C && vars.watchers["act"].Current == 0 && vars.watchers["zone"].Current == 0)
+                if (!vars.ingame && vars.watchers["trigger"].Current == 0x8C && vars.watchers["act"].Current == 0 && (vars.watchers["zone"].Current == 0 || vars.watchers["zone"].Current == 7 ) )
                 {
+                    vars.nextzone = vars.watchers["zone"].Current;
                     vars.DebugOutput(String.Format("next split on: zone: {0} act: {1}", vars.nextzone, vars.nextact));
                     start = true;
                 }
@@ -833,7 +841,8 @@ update
                                     vars.watchers["savefilezone"].Old == 255 && 
                                     vars.watchers["savefilezone"].Current == 0 )
                             )
-                        ) 
+                        ) ||
+                        ( vars.isSK && vars.watchers["act"].Current == 0 && vars.watchers["zone"].Current == 0 )
                     ) {
                         reset = true;
                     }
