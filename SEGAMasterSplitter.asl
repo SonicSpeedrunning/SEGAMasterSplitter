@@ -369,7 +369,7 @@ init
                     new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1295    ) { Name = "zone" },
                     new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1296     ) { Name = "act" },
                     new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1293     ) { Name = "trigger" },
-                    new MemoryWatcher<ushort>(  (IntPtr)smsMemoryOffset + 0x12B9  /* for simplicity */  ) { Name = "levelframecount" },
+                    new MemoryWatcher<ushort>(  (IntPtr)smsMemoryOffset + 0x12BA  /* for simplicity */  ) { Name = "levelframecount" },
                     new MemoryWatcher<byte>( (IntPtr)smsMemoryOffset + 0x12C8     ) { Name = "systemflag" },
                     new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
                     new MemoryWatcher<byte>(  vars.emeraldcountoffset     ) { Name = "emeraldcount" },
@@ -812,6 +812,15 @@ update
             }
             else if ( vars.watchers["levelframecount"].Current == 0 && vars.watchers["seconds"].Current == 0 && vars.watchers["minutes"].Current == 0) {
                  vars.loading = false; //unpause timer once game time has reset
+            }
+            else if ( 
+                vars.isSMSGGSonic2 && 
+                vars.watchers["seconds"].Current == 1 && 
+                vars.watchers["minutes"].Current == 0 &&
+                vars.nextsplit != "0-1" ) {
+                // handle Sonic 2 SMS shitty stuff
+                vars.loading = false;
+                vars.igttotal++;
             }
             if ( start || split ) {
                 // pause to wait until the stage actually starts, to fix S1 issues like SB3->FZ
