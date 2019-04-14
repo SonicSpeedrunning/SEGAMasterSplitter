@@ -102,6 +102,7 @@ init
         vars.nextsplit = "";
         vars.startTrigger = 0x8C;
         vars.splitInXFrames = -1;
+        vars.bossdown = false;
         vars.levelselectbytes = new byte[] {0x01}; // Default as most are 0 - off, 1 - on
         IDictionary<string, string> expectednextlevel = new Dictionary<string, string>();
         vars.nextzonemap = false;
@@ -130,6 +131,7 @@ init
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xD189 : 0xD188 ) ) { Name = "ppboss" },
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x0BA9 : 0x0BA8 ) ) { Name = "ffboss" },
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x06A3 : 0x06A2 ) ) { Name = "emeralds" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x0A1B : 0x0A1A ) ) { Name = "fadeout" },
                     new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + 0x0A5C                          ) { Name = "levelframecount" },
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset + 0x040D                          ) { Name = "levelselect" },
                 };
@@ -625,13 +627,23 @@ update
             if (vars.watchers["ingame"].Current == 0 && vars.watchers["ingame"].Old == 1 && vars.watchers["level"].Current == 0 ) {
                 reset = true;
             }
-            if (
-                ( vars.watchers["level"].Current > 1 && vars.watchers["level"].Current == (vars.watchers["level"].Old + 1) ) || // Level Change
-                ( vars.watchers["level"].Current == 21 && vars.watchers["emeralds"].Current < 7 && vars.watchers["ppboss"].Old == 224 && vars.watchers["ppboss"].Current == 128) || // Panic Puppet Boss Destroyed
-                ( vars.watchers["level"].Current == 22 && vars.watchers["ffboss"].Old == 1 && vars.watchers["ffboss"].Current == 0) // Final Fight Boss
+            if ( vars.watchers["level"].Current > 1 && vars.watchers["level"].Current == (vars.watchers["level"].Old + 1)  // Level Change
             ) {
                 split = true;
             }
+            if ( 
+                ( vars.watchers["level"].Current == 21 && vars.watchers["emeralds"].Current < 7 && vars.watchers["ppboss"].Old == 224 && vars.watchers["ppboss"].Current == 128) || // Panic Puppet Boss Destroyed
+                ( vars.watchers["level"].Current == 22 && vars.watchers["ffboss"].Old == 1 && vars.watchers["ffboss"].Current == 0) // Final Fight Boss
+            ) {
+                vars.bossdown = true;
+            }
+            if (
+                vars.bossdown &&
+                vars.watchers["fadeout"].Current == 0 && vars.watchers["fadeout"].Old != 0
+            ) {
+                split = true;
+            }
+
 
             gametime = TimeSpan.FromSeconds(vars.igttotal);
             break;
