@@ -106,6 +106,7 @@ init
         vars.levelselectbytes = new byte[] {0x01}; // Default as most are 0 - off, 1 - on
         IDictionary<string, string> expectednextlevel = new Dictionary<string, string>();
         vars.nextzonemap = false;
+        vars.stopwatch = new Stopwatch();
         vars.livesplitGameName = vars.gamename;
         switch ( (string) vars.gamename ) {
             /**********************************************************************************
@@ -277,6 +278,8 @@ init
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xFE11 : 0xFE10 )    ) { Name = "act" },
                     new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF600 : 0xF601 )    ) { Name = "trigger" },
                     new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xFE04 : 0xFE04 )    ) { Name = "levelframecount" },
+                    new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0xF7D2 ) { Name = "timebonus" },
+                    new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0xFE28 ) { Name = "scoretally" },
                     new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
 
                 };
@@ -523,12 +526,53 @@ update
     var split = false;
     var reset = false;
 
+    if ( vars.ingame && ( vars.isGenSonic1or2 || vars.isS3K ) ) {
+        current.scoretally = vars.watchers["scoretally"].Current;
+        current.timebonus = vars.watchers["timebonus"].Current;
+        if ( vars.isBigEndian ) {
+            current.scoretally = vars.SwapEndianness(vars.watchers["scoretally"].Current);
+            current.timebonus  = vars.SwapEndianness(vars.watchers["timebonus"].Current);
+        }
+
+        if ( current.timebonus > 999 ) {
+            current.hascontinue = true;
+        }
+        if ( timer.CurrentPhase == TimerPhase.Paused && old.timebonus == 0 ) {
+            
+            
+            if (vars.isGenSonic1or2 && !vars.isGenSonic1 && current.hascontinue && vars.stopwatch.ElapsedMilliseconds < 2000) {
+                if ( vars.stopwatch.ElapsedMilliseconds == 0) {
+                    vars.stopwatch.Start();
+                }
+            } else {
+                // If we had a bonus, and the previous frame's timebonus is now 0, reset it
+                vars.loading = false;
+                current.hascontinue = false;
+                vars.stopwatch.Reset();
+                // pause to unpause LUL
+                vars.timerModel.Pause();
+            }
+
+        } else if ( !vars.loading && vars.watchers["act"].Current <= 2 && current.timebonus < old.timebonus && current.scoretally > old.scoretally ) {
+            // if we haven't detected a bonus yet
+            // check that we are in an act (sanity check)
+            // then check to see if the current timebonus is less than the previous frame's one.
+            vars.DebugOutput(String.Format("Detected Bonus decrease: {0} from: {1}", current.timebonus, old.timebonus));
+            vars.loading = true;
+            vars.timerModel.Pause();
+            
+        }
+    }
+
+
     if ( vars.splitInXFrames == 0 ) {
         vars.splitInXFrames = -1;
         split = true;
     } else if ( vars.splitInXFrames > 0 ) {
         vars.splitInXFrames--;
     }
+
+
 
     if ( !vars.ingame && timer.CurrentPhase == TimerPhase.Running) {
         //pressed start run or autostarted run
@@ -542,7 +586,7 @@ update
 
         if ( vars.isS3K ) {
             if ( vars.nextzone != 7 ) {
-            vars.nextzone = 0;
+                vars.nextzone = 0;
             }
             vars.nextact = 1;
             vars.dez2split = false;
@@ -839,12 +883,6 @@ update
                     start = true;
                 }
                 current.inMenu = ( vars.watchers["waterlevel"].Current == 0 && vars.watchers["centiseconds"].Current == 0 && vars.watchers["centiseconds"].Old == 0 );
-                current.scoretally = vars.watchers["scoretally"].Current;
-                current.timebonus = vars.watchers["timebonus"].Current;
-                if ( vars.isBigEndian ) {
-                    current.scoretally = vars.SwapEndianness(vars.watchers["scoretally"].Current);
-                    current.timebonus  = vars.SwapEndianness(vars.watchers["timebonus"].Current);
-                }
 
 
 
@@ -867,16 +905,7 @@ update
                     ) {
                         reset = true;
                     }
-                    if (  vars.loading && old.timebonus == 0 ) {
-                        // If we had a bonus, and the previous frame's timebonus is now 0, reset it
-                        vars.loading = false;
-                    } else if ( !vars.loading && vars.watchers["act"].Current <= 1 && current.timebonus < old.timebonus && current.scoretally > old.scoretally ) {
-                        // if we haven't detected a bonus yet
-                        // check that we are in an act (sanity check)
-                        // then check to see if the current timebonus is less than the previous frame's one.
-                        vars.DebugOutput(String.Format("Detected Bonus decrease: {0} from: {1}", current.timebonus, old.timebonus));
-                        vars.loading = true;
-                    }
+
                 }
                 const byte ACT_1 = 0;
                 const byte ACT_2 = 1;
@@ -1072,6 +1101,7 @@ update
 
 startup
 {
+    vars.timerModel = new TimerModel { CurrentState = timer };
     string logfile = Directory.GetCurrentDirectory() + "\\SEGAMasterSplitter.log";
     if ( File.Exists( logfile ) ) {
         File.Delete( logfile );
