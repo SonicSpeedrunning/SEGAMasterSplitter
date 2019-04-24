@@ -99,6 +99,7 @@ init
         vars.isSK = false;
         vars.isSMSGGSonic2 = false;
         vars.isSonicChaos = false;
+        vars.isSonicCD = false;
         vars.nextsplit = "";
         vars.startTrigger = 0x8C;
         vars.splitInXFrames = -1;
@@ -110,7 +111,7 @@ init
         vars.livesplitGameName = vars.gamename;
         switch ( (string) vars.gamename ) {
             /**********************************************************************************
-                START Alex Kidd in Miracle World watchlist
+                ANCHOR START Alex Kidd in Miracle World watchlist
             **********************************************************************************/
             case "Alex Kidd in Miracle World":
                 vars.watchers = new MemoryWatcherList
@@ -122,7 +123,7 @@ init
                 };
                 break;
             /**********************************************************************************
-                START Sonic 3D Blast Memory watchlist
+                ANCHOR START Sonic 3D Blast Memory watchlist
             **********************************************************************************/
             case "Sonic 3D Blast":
                 vars.watchers = new MemoryWatcherList
@@ -143,7 +144,7 @@ init
                 break;
 
             /**********************************************************************************
-                START Sonic Spinball (Genesis / Mega Drive) 
+                ANCHOR START Sonic Spinball (Genesis / Mega Drive) 
             **********************************************************************************/
             case "Sonic Spinball (Genesis / Mega Drive)":
                 vars.levelselectoffset = (IntPtr)memoryOffset + ( isBigEndian ? 0xF8F8 : 0xF8F9 );
@@ -162,8 +163,8 @@ init
                 vars.skipsplit = false;
                 break;
             /**********************************************************************************
-                START Sonic the HedgeHog 1 & 2 Genesis watchlist
-            **********************************************************************************/        
+                ANCHOR START Sonic the HedgeHog 1 & 2 Genesis watchlist
+            **********************************************************************************/
             case "Sonic the Hedgehog (Genesis / Mega Drive)":
             case "Sonic the Hedgehog":
             case "Sonic 1": 
@@ -290,7 +291,7 @@ init
                 vars.expectednextlevel = expectednextlevel;
                 break;
             /**********************************************************************************
-                START Sonic the Hedgehog 3 & Knuckles watchlist
+                ANCHOR START Sonic the Hedgehog 3 & Knuckles watchlist
             **********************************************************************************/
             case "Sonic & Knuckles":
             case "Sonic and Knuckles":
@@ -333,7 +334,7 @@ init
                 vars.isS3K = true;
                 break;
             /**********************************************************************************
-                START Sonic the Hedgehog (Master System) watchlist
+                ANCHOR START Sonic the Hedgehog (Master System) watchlist
             **********************************************************************************/
             case "Sonic the Hedgehog (Master System)":
                 vars.watchers = new MemoryWatcherList
@@ -351,7 +352,7 @@ init
                 
                 break;
             /**********************************************************************************
-                START Sonic the Hedgehog (Game Gear / Master System) watchlist
+                ANCHOR START Sonic the Hedgehog (Game Gear / Master System) watchlist
             **********************************************************************************/
             case "Sonic the Hedgehog 2 (Game Gear / Master System)":
             case "Sonic 2 Rebirth":
@@ -429,7 +430,7 @@ init
                 vars.expectednextlevel = expectednextlevel;
                 break;
             /**********************************************************************************
-                START Sonic Chaos watchlist
+                ANCHOR START Sonic Chaos watchlist
             **********************************************************************************/
             case "Sonic Chaos":
 
@@ -502,6 +503,79 @@ init
                 vars.isSonicChaos = true;
                 vars.expectednextlevel = expectednextlevel;
                 break;
+            /**********************************************************************************
+                ANCHOR START Sonic CD '93 watchlist
+            **********************************************************************************/
+            case "Sonic CD":
+                const string 
+                    PALMTREE_PANIC_1    = "0-0", PALMTREE_PANIC_2    = "0-1", PALMTREE_PANIC_3    = "0-2",
+                    COLLISION_CHAOS_1   = "1-0", COLLISION_CHAOS_2   = "1-1", COLLISION_CHAOS_3   = "1-2",
+                    TIDAL_TEMPEST_1     = "2-0", TIDAL_TEMPEST_2     = "2-1", TIDAL_TEMPEST_3     = "2-2",
+                    QUARTZ_QUADRANT_1   = "3-0", QUARTZ_QUADRANT_2   = "3-1", QUARTZ_QUADRANT_3   = "3-2", 
+                    WACKY_WORKBENCH_1   = "4-0", WACKY_WORKBENCH_2   = "4-1", WACKY_WORKBENCH_3   = "4-2", 
+                    STARDUST_SPEEDWAY_1 = "5-0", STARDUST_SPEEDWAY_2 = "5-1", STARDUST_SPEEDWAY_3 = "5-2", 
+                    METALLIC_MADNESS_1  = "6-0", METALLIC_MADNESS_2  = "6-1", METALLIC_MADNESS_3  = "6-2", 
+                    AFTER_METALLIC_MADNESS_3 = "99-0";
+                
+                var scdexpectednextlevel = new Dictionary<string, string>() {
+                    { PALMTREE_PANIC_1,     /* -> */ PALMTREE_PANIC_2    },
+                    { PALMTREE_PANIC_2,     /* -> */ PALMTREE_PANIC_3    },
+                    { PALMTREE_PANIC_3,     /* -> */ COLLISION_CHAOS_1   },
+                    { COLLISION_CHAOS_1,    /* -> */ COLLISION_CHAOS_2   },
+                    { COLLISION_CHAOS_2,    /* -> */ COLLISION_CHAOS_3   },
+                    { COLLISION_CHAOS_3,    /* -> */ TIDAL_TEMPEST_1     },
+                    { TIDAL_TEMPEST_1,      /* -> */ TIDAL_TEMPEST_2     },
+                    { TIDAL_TEMPEST_2,      /* -> */ TIDAL_TEMPEST_3     },
+                    { TIDAL_TEMPEST_3,      /* -> */ QUARTZ_QUADRANT_1   },
+                    { QUARTZ_QUADRANT_1,    /* -> */ QUARTZ_QUADRANT_2   },
+                    { QUARTZ_QUADRANT_2,    /* -> */ QUARTZ_QUADRANT_3   },
+                    { QUARTZ_QUADRANT_3,    /* -> */ WACKY_WORKBENCH_1   },
+                    { WACKY_WORKBENCH_1,    /* -> */ WACKY_WORKBENCH_2   },
+                    { WACKY_WORKBENCH_2,    /* -> */ WACKY_WORKBENCH_3   },
+                    { WACKY_WORKBENCH_3,    /* -> */ STARDUST_SPEEDWAY_1 },
+                    { STARDUST_SPEEDWAY_1,  /* -> */ STARDUST_SPEEDWAY_2 },
+                    { STARDUST_SPEEDWAY_2,  /* -> */ STARDUST_SPEEDWAY_3 },
+                    { STARDUST_SPEEDWAY_3,  /* -> */ METALLIC_MADNESS_1  },
+                    { METALLIC_MADNESS_1,   /* -> */ METALLIC_MADNESS_2  },
+                    { METALLIC_MADNESS_2,   /* -> */ METALLIC_MADNESS_3  },
+                    { METALLIC_MADNESS_3,   /* -> */ AFTER_METALLIC_MADNESS_3 }
+                };
+
+    
+                vars.expectednextlevel = scdexpectednextlevel;
+                vars.watchers = new MemoryWatcherList
+                {
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1516 : 0x1517 )    ) { Name = "seconds" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1515 : 0x1514 )    ) { Name = "minutes" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1508 : 0x1509 )    ) { Name = "lives" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1508 : 0x1509 )    ) { Name = "continues" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1506 : 0x1507 )    ) { Name = "zone" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1507 : 0x1506 )    ) { Name = "act" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xFA0E : 0xFA0F )    ) { Name = "trigger" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x152E : 0x152F )    ) { Name = "timeperiod" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1517 : 0x1516 )    ) { Name = "framesinsecond" },
+                    
+                    
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1571 : 0x1570 )    ) { Name = "timewarpminutes" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1572 : 0x1573 )    ) { Name = "timewarpseconds" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1573 : 0x1572 )    ) { Name = "timewarpframesinsecond" },
+
+                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x1504 : 0x1504 )    ) { Name = "levelframecount" },
+                    new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0xF7D2 ) { Name = "timebonus" },
+                    new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0x151A ) { Name = "scoretally" },
+                    new MemoryWatcher<ulong>( (IntPtr)memoryOffset + 0xFB00 ) { Name = "fadeout" },
+                    //new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
+
+                };
+                vars.isIGT = true;
+                vars.isSonicCD = true;
+                vars.startTrigger = 1;
+                vars.ms = 0;
+                vars.waitforminutes = 0;
+                vars.waitforseconds = 0;
+                vars.waitforframes = 0;
+                vars.wait = false;
+                break;
             default:
                 throw new NullReferenceException (String.Format("Game {0} not supported.", vars.gamename ));
         
@@ -526,7 +600,7 @@ update
     var split = false;
     var reset = false;
 
-    if ( vars.ingame && ( vars.isGenSonic1or2 || vars.isS3K ) ) {
+    if ( vars.ingame && ( vars.isGenSonic1or2 || vars.isS3K || vars.isSonicCD ) ) {
         current.scoretally = vars.watchers["scoretally"].Current;
         current.timebonus = vars.watchers["timebonus"].Current;
         if ( vars.isBigEndian ) {
@@ -579,11 +653,18 @@ update
         
         vars.DebugOutput("run start detected");
         vars.igttotal = 0;
+        vars.ms = 0;
         vars.ingame = true;
         if ( vars.isGenSonic1or2 ) {
             vars.loading = true;
         }
-
+        if ( vars.isSonicCD ) {
+            current.totalseconds = 0;
+            vars.waitforminutes = 0;
+            vars.waitforseconds = 0;
+            vars.waitforframes = 0;
+            vars.wait = false;
+        }
         if ( vars.isS3K ) {
             if ( vars.nextzone != 7 ) {
                 vars.nextzone = 0;
@@ -617,7 +698,7 @@ update
 
     switch ( (string) vars.gamename ) {
         /**********************************************************************************
-            START Alex Kidd in Miracle World Support
+            ANCHOR START Alex Kidd in Miracle World Support
         **********************************************************************************/
         case "Alex Kidd in Miracle World":
             if ( !vars.ingame && vars.watchers["level"].Current == 1 && vars.watchers["trigger"].Current == 1 ) {
@@ -642,9 +723,8 @@ update
             }
             break;
         /**********************************************************************************
-            START Sonic 3D Blast Support
+            ANCHOR START Sonic 3D Blast Support
         **********************************************************************************/
-
         case "Sonic 3D Blast":
             if(!((IDictionary<String, object>)old).ContainsKey("igt")) {
                 old.igt = vars.watchers["levelframecount"].Old;
@@ -692,7 +772,7 @@ update
             gametime = TimeSpan.FromSeconds(vars.igttotal);
             break;
         /**********************************************************************************
-            START Sonic Spinball (Genesis / Mega Drive) 
+            ANCHOR START Sonic Spinball (Genesis / Mega Drive) 
         **********************************************************************************/
         case "Sonic Spinball (Genesis / Mega Drive)":
             var menutimeout = vars.watchers["menutimeout"].Old;
@@ -767,21 +847,22 @@ update
             }
             break;
         /**********************************************************************************
-            START Sonic the Hedgehog 1 & 2 Genesis & 2 8 bit support
-        **********************************************************************************/        
+            ANCHOR START Sonic the Hedgehog 1 & 2 Genesis & 2 8 bit support
+        **********************************************************************************/
         case "Sonic the Hedgehog (Genesis / Mega Drive)":
         case "Sonic the Hedgehog 2 (Genesis / Mega Drive)":
         case "Sonic the Hedgehog 2 (Game Gear / Master System)":
         case "Sonic Chaos":
+        case "Sonic CD":
             if ( !vars.ingame && 
                 ( 
-                    ( !vars.isSonicChaos && vars.watchers["trigger"].Current == vars.startTrigger ) ||
+                    ( !vars.isSonicChaos && vars.watchers["trigger"].Current == vars.startTrigger && ( !vars.isSonicCD || vars.watchers["timeperiod"].Current == 1   ) ) ||
                     ( vars.isSonicChaos && ( vars.watchers["lives"].Old == 0 && vars.watchers["lives"].Current >= 3 ) )
                  ) && 
                 vars.watchers["act"].Current == 0 && 
                 vars.watchers["zone"].Current == 0 
             ) {
-                vars.nextsplit = "0-1"; // EMERALD_HILL_2 or GREEN_HILL_2 or UNDER_GROUND_2
+                vars.nextsplit = "0-1"; // 2nd Level
                 start = true;
                 vars.igttotal = 0;
                 
@@ -802,7 +883,7 @@ update
                 }
             }
             if ( 
-                !settings["levelselect"] &&
+                !settings["levelselect"] && !vars.isSonicCD &&
                 (
                     (  vars.watchers["lives"].Current == 0 && vars.watchers["continues"].Current == 0 ) ||
                     ( !vars.isSMSGGSonic2 && vars.watchers["trigger"].Current == 0x04 && vars.watchers["trigger"].Old == 0x0 ) 
@@ -815,6 +896,11 @@ update
                 vars.nextsplit = vars.expectednextlevel[currentlevel];
                 vars.DebugOutput("Next Split on: " + vars.nextsplit);
                 split = true;
+                if ( vars.isSonicCD ) {
+                    vars.igttotal += old.expectedms;
+                    vars.ms = 0;
+                    vars.loading = true;
+                }
                 
             }
             if ( vars.isSMSGGSonic2 && currentlevel == "7-0" && vars.nextsplit == "6-0") {
@@ -826,35 +912,87 @@ update
             if ( 
                 vars.nextsplit == "99-0" && (
                     ( vars.isGenSonic1 && vars.watchers["trigger"].Current == 0x18 ) ||
+                    ( vars.isSonicCD && 
+                        (vars.watchers["fadeout"].Current == 0xEE0EEE0EEE0EEE0E && vars.watchers["fadeout"].Old == 0xEE0EEE0EEE0EEE0E) ||
+                        (vars.watchers["fadeout"].Current == 0x0EEE0EEE0EEE0EEE && vars.watchers["fadeout"].Old == 0x0EEE0EEE0EEE0EEE)
+                    ) ||
                     ( !vars.isGenSonic1 && vars.watchers["trigger"].Current == 0x20 )
                     
                 )
             )  {
                 split = true;
             }
+
             if ( !vars.isIGT ) {
                 break;
             }
-            if ( vars.ingame && !vars.loading ) {
-                var oldSeconds = vars.watchers["seconds"].Old;
-                var curSeconds = vars.watchers["seconds"].Current;
-                if ( !vars.isGenSonic1or2 ) {
-                    oldSeconds = ( ( oldSeconds >> 4 ) * 10 ) + ( oldSeconds & 0xF );
-                    curSeconds = ( ( curSeconds >> 4 ) * 10 ) + ( curSeconds & 0xF );
-                }
-                if (
-                    (
-                        vars.watchers["minutes"].Current == vars.watchers["minutes"].Old &&
-                        curSeconds == oldSeconds + 1
-                    ) || (
-                        vars.watchers["minutes"].Current == (vars.watchers["minutes"].Old + 1) &&
-                        vars.watchers["seconds"].Current == 0 
-                    )
+
+            if ( vars.isSonicCD ) {
+                if ( 
+                    vars.loading &&
+                    vars.watchers["minutes"].Current == vars.watchers["timewarpminutes"].Current &&
+                    vars.watchers["seconds"].Current == vars.watchers["timewarpseconds"].Current &&
+                    vars.watchers["framesinsecond"].Current == vars.watchers["timewarpframesinsecond"].Current
+                
                 ) {
-                    vars.igttotal++;
+
+                    vars.loading = false;
+                }
+
+                if (
+                ( vars.watchers["timewarpminutes"].Current > 0 && vars.watchers["timewarpminutes"].Current != vars.watchers["timewarpminutes"].Old ) ||
+                ( vars.watchers["timewarpseconds"].Current > 0 && vars.watchers["timewarpseconds"].Current != vars.watchers["timewarpseconds"].Old ) ||
+                ( vars.watchers["timewarpframesinsecond"].Current > 0 && vars.watchers["timewarpframesinsecond"].Current != vars.watchers["timewarpframesinsecond"].Old ) 
+                ) {
+                    vars.waitforminutes = vars.watchers["timewarpminutes"].Current;
+                    vars.waitforseconds = vars.watchers["timewarpseconds"].Current;
+                    vars.waitforframes = vars.watchers["timewarpframesinsecond"].Current;
+                    vars.wait = true;
                 }
             }
-            else if ( vars.watchers["levelframecount"].Current == 0 && vars.watchers["seconds"].Current == 0 && vars.watchers["minutes"].Current == 0) {
+            if ( vars.ingame && !vars.loading ) {
+                if ( vars.isSonicCD ) {
+                    
+                    current.totalseconds = ( vars.watchers["minutes"].Current * 60) + vars.watchers["seconds"].Current;
+
+                    vars.igttotal += Math.Max(current.totalseconds - old.totalseconds,0) * 1000;
+                    current.expectedms = Math.Floor(vars.watchers["framesinsecond"].Current * (100.0/6.0));
+
+                    vars.ms = current.expectedms;
+
+                    if ( vars.wait && vars.waitforframes == vars.watchers["framesinsecond"].Current && vars.waitforseconds ==  vars.watchers["seconds"].Current && vars.waitforminutes == vars.watchers["minutes"].Current ) {
+                        vars.wait = false;
+                        vars.loading = true;
+                    }
+                    if ( vars.watchers["lives"].Current == vars.watchers["lives"].Old -1 ) {
+                        vars.igttotal += vars.ms;
+                        vars.ms = 0;
+                        vars.loading = true;
+                    }
+                } else {
+                    var oldSeconds = vars.watchers["seconds"].Old;
+                    var curSeconds = vars.watchers["seconds"].Current;
+                    if ( !vars.isGenSonic1or2 ) {
+                        oldSeconds = ( ( oldSeconds >> 4 ) * 10 ) + ( oldSeconds & 0xF );
+                        curSeconds = ( ( curSeconds >> 4 ) * 10 ) + ( curSeconds & 0xF );
+                    }
+                    if (
+                        (
+                            vars.watchers["minutes"].Current == vars.watchers["minutes"].Old &&
+                            curSeconds == oldSeconds + 1
+                        ) || (
+                            vars.watchers["minutes"].Current == (vars.watchers["minutes"].Old + 1) &&
+                            vars.watchers["seconds"].Current == 0 
+                        )
+                    ) {
+                        vars.igttotal++;
+                    }
+                }
+            } else if ( vars.loading && vars.watchers["levelframecount"].Current == 0 && 
+                (
+                    ( vars.isSonicCD && vars.watchers["levelframecount"].Old > 0 ) ||
+                    ( vars.watchers["seconds"].Current == 0 && vars.watchers["minutes"].Current == 0 )
+                ) ) {
                  vars.loading = false; //unpause timer once game time has reset
             }
             else if ( 
@@ -870,10 +1008,15 @@ update
                 // pause to wait until the stage actually starts, to fix S1 issues like SB3->FZ
                 vars.loading = !vars.isSonicChaos;
             }
-            gametime = TimeSpan.FromSeconds(vars.igttotal);
+            if ( vars.isSonicCD ) {
+                gametime = TimeSpan.FromMilliseconds(vars.igttotal + vars.ms);
+            } else {
+                gametime = TimeSpan.FromSeconds(vars.igttotal);
+            }
+            
             break;
         /**********************************************************************************
-            START Sonic the Hedgehog 3 & Knuckles watchlist
+            ANCHOR START Sonic the Hedgehog 3 & Knuckles split code
         **********************************************************************************/
             case "Sonic 3 & Knuckles":
                 if (!vars.ingame && vars.watchers["trigger"].Current == 0x8C && vars.watchers["act"].Current == 0 && (vars.watchers["zone"].Current == 0 || vars.watchers["zone"].Current == 7 ) )
@@ -1050,7 +1193,7 @@ update
                 }
             break;
         /**********************************************************************************
-            START Sonic the Hedgehog (Master System) support
+            ANCHOR START Sonic the Hedgehog (Master System) support
         **********************************************************************************/
         case "Sonic the Hedgehog (Master System)":
             if ( vars.watchers["menucheck1"].Current == 5 && vars.watchers["menucheck1"].Old <= 1 && vars.watchers["menucheck2"].Current == 4 && vars.watchers["menucheck2"].Old <= 1 ) {
