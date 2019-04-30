@@ -282,6 +282,7 @@ init
                     new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0xF7D2 ) { Name = "timebonus" },
                     new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0xFE28 ) { Name = "scoretally" },
                     new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
+                    new MemoryWatcher<ulong>( (IntPtr)memoryOffset + 0xFB00 ) { Name = "fadeout" },
 
                 };
                 vars.isGenSonic1or2 = true;
