@@ -122,6 +122,21 @@ init
                     new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1800     ) { Name = "complete" },
                 };
                 break;
+
+            /**********************************************************************************
+                ANCHOR START Mystic Defender watchlist
+            **********************************************************************************/
+            case "Mystic Defender":
+                vars.watchers = new MemoryWatcherList
+                {
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xF627 : 0xF627 ) ) { Name = "stage" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xF629 : 0xF628 ) ) { Name = "level" },
+                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + 0xD010                          ) { Name = "menucheck" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xE61F : 0xE61E ) ) { Name = "bosshp" },
+                };
+                break;
+
+            
             /**********************************************************************************
                 ANCHOR START Sonic 3D Blast Memory watchlist
             **********************************************************************************/
@@ -723,6 +738,36 @@ update
                 }
             }
             break;
+
+        /**********************************************************************************
+            ANCHOR START Mystic Defender Support
+        **********************************************************************************/
+        case "Mystic Defender":
+            current.menucheck = vars.watchers["menucheck"].Current;
+            if ( vars.isBigEndian ) {
+                current.menucheck = vars.SwapEndianness(current.menucheck);
+            }
+            if ( !vars.ingame && current.menucheck == 65535 && old.menucheck == 1 ) {
+                // Have control so start timer
+                start = true;
+            }
+
+            if ( vars.ingame ) {
+                if (
+                    ( vars.watchers["level"].Current > vars.watchers["level"].Old ) ||
+                    ( vars.watchers["level"].Current == 14 && vars.watchers["bosshp"].Current == 0 && vars.watchers["bosshp"].Old > 0)
+                ) {
+                    // Have control so start timer
+                    split = true;
+                }
+                if ( old.menucheck == 0 && current.menucheck == 1 ) {
+                    reset = true;
+                }
+            }
+            break;
+
+            
+
         /**********************************************************************************
             ANCHOR START Sonic 3D Blast Support
         **********************************************************************************/
