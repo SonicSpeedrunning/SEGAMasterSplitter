@@ -11,6 +11,7 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 
 ## Supported Games
 ### 16-bit
+* Mystic Defender
 * Sonic the Hedgehog 1 (Genesis/Mega Drive)
 * Sonic the Hedgehog 2 (Genesis/Mega Drive)
 * Sonic 3 & Knuckles
