@@ -18,6 +18,7 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 * Sonic 3 & Knuckles
 * Sonic 3 Complete
 * Sonic 3D Blast
+* Sonic Eraser
 * Sonic Spinball (Genesis/Mega Drive)
 ### 8-bit
 * Alex Kidd in Miracle World
