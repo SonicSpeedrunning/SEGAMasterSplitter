@@ -124,6 +124,23 @@ init
                 break;
 
             /**********************************************************************************
+                ANCHOR START Magical Taruruuto-kun watchlist
+            **********************************************************************************/
+            case "Magical Taruruuto-kun":
+                vars.levelselectbytes = new byte[] {0xC0};
+                vars.levelselectoffset = (IntPtr)memoryOffset + ( isBigEndian ? 0xFD31 : 0xFD30 );
+                vars.watchers = new MemoryWatcherList
+                {
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xFD4B : 0xFD4A ) ) { Name = "level" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xFEF9 : 0xFEF8 ) ) { Name = "gamemode" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xF806 : 0xF807 ) ) { Name = "menu" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xE19C : 0xE19C ) ) { Name = "clearelement" },
+                    new MemoryWatcher<byte>(  vars.levelselectoffset ) { Name = "levelselect" },
+                };
+                break;
+
+
+            /**********************************************************************************
                 ANCHOR START Mystic Defender watchlist
             **********************************************************************************/
             case "Mystic Defender":
@@ -739,6 +756,80 @@ update
             }
             break;
 
+        /**********************************************************************************
+            ANCHOR START Magical Taruruuto-kun Support
+        **********************************************************************************/
+        case "Magical Taruruuto-kun":
+            if ( !vars.ingame && vars.watchers["gamemode"].Old == 1 && vars.watchers["gamemode"].Current == 1 && vars.watchers["level"].Current == 1) {
+                start = true;
+            }
+
+
+            if ( vars.ingame ) {
+
+                if ( vars.watchers["level"].Current == 67 && vars.watchers["clearelement"].Current == 2 ) {
+                    split = true;
+                }
+                if ( vars.watchers["level"].Current > vars.watchers["level"].Old ) {
+                    /*
+                        Stages:
+                        3 Honmaru (help?)
+                        5 Harakko (autoscroller boss)
+                        6 Jabao (footballer boss) Stage 1 boss
+                        14 Ria (help?)
+                        15 Mikotaku (boss)
+                        19 Mimora (boss) Stage 2 boss
+                        21 Door
+                        22 vamp boss?
+                        23 Ijigawa (help?)
+                        26 Door
+                        27 Shogunnosuke (help?)
+                        31 Dowahha (boss) Stage 3 boss
+                        33 Return of Harakko (autoscroller boss)
+                        34 Demo
+                        47 Nilulu (help?)
+                        62 Ohaya (help?)
+                        67 Rivar
+
+                    */
+                    if ( settings["mtk_before"] ) {
+                        switch ( (int) vars.watchers["level"].Current ) {
+                            case 6:
+                            case 15:
+                            case 19:
+                            case 22:
+                            case 31:
+                            case 33:
+                            case 67:
+                                split = true;
+                                break;
+                        }
+                    }
+                    if ( settings["mtk_after"] ) {
+                        switch ( (int) vars.watchers["level"].Old ) {
+                            case 6:
+                            case 15:
+                            case 19:
+                            case 22:
+                            case 31:
+                            case 33:
+                                split = true;
+                                break;
+                        }
+                    }
+                    if ( vars.watchers["level"].Old == 67 ) {
+                        split = true;
+                    }
+
+
+                }
+
+                if ( vars.watchers["gamemode"].Current == 0 && vars.watchers["menu"].Old == 0 && vars.watchers["menu"].Current == 1) {
+                    reset = true;
+                }
+            }
+
+            break;
         /**********************************************************************************
             ANCHOR START Mystic Defender Support
         **********************************************************************************/
