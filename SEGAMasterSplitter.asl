@@ -619,6 +619,20 @@ init
                 vars.waitforframes = 0;
                 vars.wait = false;
                 break;
+        /**********************************************************************************
+            ANCHOR START Tiny Toon Adventures: Buster's Hidden Treasure watchlist
+            case "Tiny Toon Adventures: Buster's Hidden Treasure":
+                vars.watchers = new MemoryWatcherList
+                {
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF92F : 0xF92E )    ) { Name = "menuoption"  },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF90C : 0xF90D )    ) { Name = "inmenu"  },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF907 : 0xF906 )    ) { Name = "trigger"  },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF973 : 0xF973 )    ) { Name = "level", Enabled = false },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF01E : 0xF01F )    ) { Name = "roundcleartrigger" },
+                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xB7C0 : 0xB7C0 )    ) { Name = "roundclear", Enabled = false },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF8FF : 0xF8FE )    ) { Name = "bosskill" },
+                };
+                break;
             default:
                 throw new NullReferenceException (String.Format("Game {0} not supported.", vars.gamename ));
         
@@ -867,7 +881,39 @@ update
             }
             break;
 
+        /**********************************************************************************
+            ANCHOR START Tiny Toon Adventures: Buster's Hidden Treasure 
+        **********************************************************************************/
+        case "Tiny Toon Adventures: Buster's Hidden Treasure":
+            //vars.DebugOutput( String.Format( "inmenu: {0}, menuoption: {1}, trigger: {2}, roundclear: {3}, bosskill: {4}", vars.watchers["inmenu"].Current, vars.watchers["menuoption"].Current, vars.watchers["trigger"].Current, vars.watchers["roundclear"].Current, vars.watchers["bosskill"].Current));
+            if ( vars.watchers["inmenu"].Current == 0 && vars.watchers["inmenu"].Old == 1 && vars.watchers["menuoption"].Current == 0 && vars.watchers["trigger"].Old == 5 && vars.watchers["trigger"].Current == 6 ) {
+                vars.watchers["roundclear"].Enabled  = false;
+                start = true;
+
+            }
+            if ( vars.watchers["trigger"].Current == 5 &&  vars.watchers["trigger"].Old < 5 ) {
+                reset = true;
+            }
+            //vars.DebugOutput(String.Format("Eh {0} {1}", vars.watchers["roundcleartrigger"].Current, vars.watchers["roundcleartrigger"].Old));
+            if ( vars.watchers["roundcleartrigger"].Changed && vars.watchers["roundcleartrigger"].Current == 1 ) {
+                vars.watchers["roundclear"].Enabled  = true;
+                vars.watchers["roundclear"].Reset();
+            }
             
+            
+            
+            if ( 
+                (
+                    vars.watchers["trigger"].Current == 0 &&
+                    vars.watchers["roundclear"].Enabled && vars.watchers["roundclear"].Old > 0 && vars.watchers["roundclear"].Current == 0
+                ) || (
+                    vars.watchers["bosskill"].Current == 1 && vars.watchers["bosskill"].Old == 0
+                ) 
+            ){
+                vars.watchers["roundclear"].Enabled  = false;
+                split = true;
+            } 
+            break;
 
         /**********************************************************************************
             ANCHOR START Sonic 3D Blast Support
