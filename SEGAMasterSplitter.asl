@@ -621,6 +621,7 @@ init
                 break;
         /**********************************************************************************
             ANCHOR START Tiny Toon Adventures: Buster's Hidden Treasure watchlist
+        **********************************************************************************/
             case "Tiny Toon Adventures: Buster's Hidden Treasure":
                 vars.watchers = new MemoryWatcherList
                 {
