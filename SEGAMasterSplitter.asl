@@ -1687,6 +1687,12 @@ startup
     settings.Add("ss_multiball", false, "Split on entry & exit of multiball stages", "ss");
     settings.SetToolTip("ss_multiball", "If checked, will split on entry and exit of extra bonus stages for Max Jackpot Bonus.");
 
+    /* Magical Taruruuto-kun settings */
+
+    settings.Add("mtk", true, "Settings for Magical Taruruuto-kun");
+    settings.Add("mtk_before", false, "Split before boss levels", "mtk");
+    settings.Add("mtk_after", true, "Split after boss levels", "mtk");
+
     /* Debug Settings */
     settings.Add("debug", false, "Debugging Options");
     settings.Add("levelselect", false, "Enable Level Select (if supported)", "debug");
