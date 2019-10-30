@@ -174,7 +174,17 @@ init
                 vars.isIGT = true;
                 
                 break;
+            /**********************************************************************************
+                ANCHOR START Sonic Eraser 
+            **********************************************************************************/
+            case "Sonic Eraser":
+                vars.watchers = new MemoryWatcherList
+                {
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xC711 : 0xC710 ) ) { Name = "level" },
+                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xBE23 : 0xBE24 ) ) { Name = "start" },
+                };
 
+                break;
             /**********************************************************************************
                 ANCHOR START Sonic Spinball (Genesis / Mega Drive) 
             **********************************************************************************/
@@ -907,6 +917,23 @@ update
 
 
             gametime = TimeSpan.FromSeconds(vars.igttotal);
+            break;
+        /**********************************************************************************
+            ANCHOR START Sonic Eraser
+        **********************************************************************************/
+        case "Sonic Eraser":
+
+            if ( vars.watchers["start"].Old == 255 && vars.watchers["start"].Current == 1 ) {
+                start = true;
+            }
+
+            if (vars.watchers["start"].Current == 255) {
+                reset = true;
+            }
+
+            if ( vars.watchers["level"].Current > vars.watchers["level"].Old ) {
+                split = true;
+            }
             break;
         /**********************************************************************************
             ANCHOR START Sonic Spinball (Genesis / Mega Drive) 
