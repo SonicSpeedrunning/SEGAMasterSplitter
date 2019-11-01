@@ -18,6 +18,7 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 * Sonic 3 & Knuckles
 * Sonic 3 Complete
 * Sonic 3D Blast
+* Sonic CD
 * Sonic Eraser
 * Sonic Spinball (Genesis/Mega Drive)
 * Tiny Toons Adventures: Buster's Hidden Treasure
@@ -29,7 +30,7 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 * Sonic Chaos
 
 ## Timing Methods
-IGT is stored in Game Time for Sonic 1, 2, 3D Blast and 2 (8-bit).  
+IGT is stored in Game Time for Sonic 1, 2, CD, 3D Blast and 2 (8-bit).  
 RTA-TB is stored in Game Time for Sonic 1 (SMS), and Sonic 3 & Knuckles.  
 RTA is also stored in Game Time for all other games.
 
