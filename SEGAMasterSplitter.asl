@@ -1379,6 +1379,7 @@ update
                         case 0x04: // sega logo -> title screen
                             zone.Enabled = true;
                             act.Enabled = true;
+                            vars.watchers["chara"].Enabled = true;
                             resettrigger.Enabled = settings["hard_reset"];
                             break;
                         case 0x4C: // data select screen
@@ -1438,7 +1439,7 @@ update
                     ( resettrigger.Changed && resettrigger.Current == 0 )
                     ||
                     // SK zone changed and set to 0.
-                    ( vars.isSK && zone.Changed && act.Current == 0 && zone.Current == 0 ) ||
+                    ( vars.isSK && !settings["levelselect"] && zone.Changed && act.Current == 0 && zone.Current == 0 ) ||
                     ( 
                         // in Menu
                         trigger.Current == 0x4C 
@@ -1547,7 +1548,7 @@ update
                     }
                     vars.DebugOutput(String.Format("{0:X} {1:X} {2:X} {3:X}", primarybg.Current, current.primarybg, old.primarybg, WHITEOUT));
                     if (
-                        current.primarybg == WHITEOUT 
+                       (ulong) current.primarybg == WHITEOUT 
                     )
                     {
                         vars.DebugOutput("SS / LB2 Boss White Screen detected");
@@ -1558,8 +1559,10 @@ update
 
                 if (vars.watchers["chara"].Current == KNUCKLES && zone.Current == SKY_SANCTUARY) //detect final hit on Knux Sky Sanctuary Boss
                 {
+                    vars.watchers["sszboss"].Enabled = true;
                     if (vars.watchers["sszboss"].Current == 0 && vars.watchers["sszboss"].Old == 1)
                     {
+                        primarybg.Enabled = true;
                         vars.DebugOutput("Knuckles Final Boss 1st phase defeat detected");
                         vars.sszsplit = true;
                     }
