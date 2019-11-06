@@ -67,7 +67,7 @@ init
 
     }
 
-    if ( game.ProcessName.ToLower().StartsWith("sega") ) {
+    if ( game.ProcessName.ToLower().StartsWith("sega") || isFusion ) {
         refLocation = (long) IntPtr.Add(baseAddress, (int)genOffset);
         genOffset = 0;
     } 
