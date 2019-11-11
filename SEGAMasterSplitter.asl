@@ -5,22 +5,19 @@
 
 state("retroarch") {}
 state("Fusion") {}
-//state("gens") {}
+state("gens") {}
 state("SEGAGameRoom") {}
 state("SEGAGenesisClassics") {}
-// state("emuhawk") {} // uncommment to enable experimental BizHawk SMS support
 
 init
 {
     vars.gamename = timer.Run.GameName;
     vars.livesplitGameName = vars.gamename;
-    vars.isBizHawk = false;
+
     long memoryOffset = 0;
     long smsMemoryOffset = 0;
     IntPtr baseAddress;
-    IntPtr injectionMem = (IntPtr) 0;
 
-    long genOffset = 0;
     long smsOffset = 0;
     long refLocation = 0;
     baseAddress = modules.First().BaseAddress;
@@ -35,7 +32,7 @@ init
                 SigScanTarget target = new SigScanTarget(0, "85 C9 74 11 83 F9 02 B8 00 00 00 00 48 0F 44 05 ?? ?? ?? ?? C3 48 8B 05 ?? ?? ?? ?? 80 78 01 00 74 0E 48 8B 40 10 C3");
                 IntPtr codeOffset = vars.LookUpInDLL( game, gpgx, target );
                 long memoryReference = memory.ReadValue<int>( codeOffset + 0x10 );
-                refLocation = ( (long ) codeOffset + 0x14 + memoryReference );
+                refLocation = ( (long) codeOffset + 0x14 + memoryReference );
             } else {
                 SigScanTarget target = new SigScanTarget(0, "8B 44 24 04 85 C0 74 18 83 F8 02 BA 00 00 00 00 B8 ?? ?? ?? ?? 0F 45 C2 C3 8D B4 26 00 00 00 00");
                 IntPtr codeOffset = vars.LookUpInDLL( game, gpgx, target );
@@ -43,37 +40,23 @@ init
             }
             break;
         case "gens":
-            genOffset = 0x40F5C;
+            refLocation = memory.ReadValue<int>( IntPtr.Add(baseAddress, 0x40F5C ) );
             break;
         case "fusion":
-            
-            genOffset = 0x2A52D4;
+            refLocation = (long) IntPtr.Add(baseAddress, 0x2A52D4);
             smsOffset = 0x2A52D8;
             isBigEndian = true;
             isFusion = true;
             break;
         case "segagameroom":
             baseAddress = modules.Where(m => m.ModuleName == "GenesisEmuWrapper.dll").First().BaseAddress;
-            genOffset = 0xB677E8;
+            refLocation = (long) IntPtr.Add(baseAddress, 0xB677E8);
             break;
         case "segagenesisclassics":
-            genOffset = 0x71704;
+            refLocation = (long) IntPtr.Add(baseAddress, 0x71704);
             break;
-        case "emuhawk":
-            // game == Bizhawk process
-            vars.isBizHawk = true;
-            memoryOffset = vars.BizHawksetup( game, memory );
-            break;
-
     }
 
-    if ( game.ProcessName.ToLower().StartsWith("sega") || isFusion ) {
-        refLocation = (long) IntPtr.Add(baseAddress, (int)genOffset);
-        genOffset = 0;
-    } 
-    if ( genOffset > 0 ) {
-        refLocation = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)genOffset) );
-    }
     vars.DebugOutput(String.Format("refLocation: {0}", refLocation));
     if ( refLocation > 0 ) {
         memoryOffset = memory.ReadValue<int>( (IntPtr) refLocation );
@@ -84,19 +67,91 @@ init
 
     vars.emuoffsets = new MemoryWatcherList
     {
-        new MemoryWatcher<uint>(  (IntPtr) refLocation    ) { Name = "genesis", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull },
-        new MemoryWatcher<uint>(  (IntPtr) IntPtr.Add(baseAddress, (int)smsOffset)     ) { Name = "sms" },
-        new MemoryWatcher<uint>(  (IntPtr) baseAddress    ) { Name = "baseaddress", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull }
+        new MemoryWatcher<uint>( (IntPtr) refLocation ) { Name = "genesis", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull },
+        new MemoryWatcher<uint>( (IntPtr) IntPtr.Add(baseAddress, (int)smsOffset)     ) { Name = "sms" },
+        new MemoryWatcher<uint>( (IntPtr) baseAddress ) { Name = "baseaddress", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull }
     };
 
     if ( memoryOffset == 0 && ( !isFusion || smsMemoryOffset == 0xC000 ) ) {
-        throw new NullReferenceException (String.Format("Memory offset not yet found. Base Address: 0x{0:X}", (long) baseAddress ));
         Thread.Sleep(500);
+        throw new NullReferenceException (String.Format("Memory offset not yet found. Base Address: 0x{0:X}", (long) baseAddress ));
     }
 
-
     vars.isBigEndian = isBigEndian;
-    Action reInitialise = () => {
+
+
+    vars.addByteAddresses = (Action <Dictionary<string, long>>)(( addresses ) => {
+        foreach ( var byteaddress in addresses ) {
+            vars.watchers.Add( new MemoryWatcher<byte>( 
+                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + byteaddress.Value ) 
+                ) { Name = byteaddress.Key, Enabled = true } 
+            );
+        }
+    });
+    vars.addUShortAddresses = (Action <Dictionary<string, long>>)(( addresses ) => {
+        foreach ( var ushortaddress in addresses ) {
+            vars.watchers.Add( new MemoryWatcher<ushort>( 
+                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + ushortaddress.Value )
+                ) { Name = ushortaddress.Key, Enabled = true } 
+            );
+        }
+    });
+    vars.addUIntAddresses = (Action <Dictionary<string, long>>)(( addresses ) => {
+        foreach ( var uintaddress in addresses ) {
+            vars.watchers.Add( new MemoryWatcher<uint>( 
+                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + uintaddress.Value )
+                ) { Name = uintaddress.Key, Enabled = true } 
+            );
+        }
+    });
+    vars.addULongAddresses = (Action <Dictionary<string, long>>)(( addresses ) => {
+        foreach ( var ushortaddress in addresses ) {
+            vars.watchers.Add( new MemoryWatcher<ulong>( 
+                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + ushortaddress.Value )
+                ) { Name = ushortaddress.Key, Enabled = true } 
+            );
+        }
+    });
+
+    vars.activateLevelSelect = (Func <bool>)(() => {
+        var levelselect = vars.watchers["levelselect"];
+        if ( levelselect.Enabled == false ) {
+            levelselect.Enabled = true;
+        }
+        if ( vars.isSMSGGSonic2 ) {
+            if ( vars.watchers["systemflag"].Current == 1 ) {
+                vars.levelselectbytes = new byte[] { 0xB6 };
+            }
+            if ( settings["s2smsallemeralds"] ) {
+                // enable all emeralds
+                IntPtr emeraldcountoffset = (IntPtr) smsMemoryOffset + vars.emeraldcountoffset;
+                IntPtr emeraldflagsoffset = (IntPtr) smsMemoryOffset + vars.emeraldflagsoffset;
+                if ( vars.watchers["emeraldcount"].Current < vars.watchers["zone"].Current ) {
+                    vars.DebugOutput("Updating Emerald Count");
+                    game.WriteBytes( (IntPtr) emeraldcountoffset, new byte[] { vars.watchers["zone"].Current } );
+                }
+                if ( vars.watchers["zone"].Current == 5 && vars.watchers["emeraldflags"].Current < 0x1F ) {
+                    vars.DebugOutput("Updating Emerald Flags");
+                    game.WriteBytes( (IntPtr) emeraldflagsoffset, new byte[] { 0x1F } );
+                }
+                if ( vars.watchers["zone"].Current == 6 && vars.watchers["emeraldflags"].Current < 0x3F ) {
+                    vars.DebugOutput("Updating Emerald Flags");
+                    game.WriteBytes( (IntPtr) emeraldflagsoffset, new byte[] { 0x3F } );
+                }
+            }
+        }
+        IntPtr lsoffset = (IntPtr ) ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + vars.levelselectoffset;
+        if ( (long) vars.levelselectoffset > 0 && levelselect.Current != vars.levelselectbytes[0] ) {
+            vars.DebugOutput(String.Format("Enabling Level Select at {0:X8} with {1} because it was {2}", lsoffset,  vars.levelselectbytes[0], levelselect.Current));
+            
+            game.WriteBytes( lsoffset , (byte[]) vars.levelselectbytes );
+            return true;
+        }
+        return false;
+    });
+
+    vars.reInitialise = (Action)(() => {
+        vars.isSMS = false;
         vars.emuoffsets.UpdateAll(game);
         memoryOffset = vars.emuoffsets["genesis"].Current;
         if ( memoryOffset == 0 && refLocation > 0 ) {
@@ -110,19 +165,18 @@ init
         }
         vars.DebugOutput(String.Format("memory should start at {0:X}", memoryOffset));
         vars.DebugOutput(String.Format("SMS memory should start at {0:X}", smsMemoryOffset));
+
         vars.isIGT = false;
         current.loading = false;
         vars.igttotal = 0;
 
         vars.ingame = false;
-
+        vars.watchers = new MemoryWatcherList {};
         vars.levelselectoffset = 0;
         vars.isGenSonic1 = false;
         vars.isGenSonic1or2 = false;
-        vars.isS3K = false;
         vars.isSK = false;
         vars.isS3 = false;
-        vars.isS3KBonuses = false;
         vars.isSMSS1 = false;
         vars.isSMSGGSonic2 = false;
         vars.hasRTATB = false;
@@ -134,108 +188,42 @@ init
         vars.bossdown = false;
         vars.juststarted = false;
         vars.triggerTB = false;
+        vars.addspecialstagetime = false; 
         vars.levelselectbytes = new byte[] {0x01}; // Default as most are 0 - off, 1 - on
         IDictionary<string, string> expectednextlevel = new Dictionary<string, string>();
+        vars.expectednextlevel = expectednextlevel;
         vars.expectedzonemap = false;
         vars.stopwatch = new Stopwatch();
         vars.timebonusms = 0;
         vars.livesplitGameName = vars.gamename;
         switch ( (string) vars.gamename ) {
-            /**********************************************************************************
-                ANCHOR START Alex Kidd in Miracle World watchlist
-            **********************************************************************************/
+            // games migrated to memory addresses being within their blocks
             case "Alex Kidd in Miracle World":
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x0023     ) { Name = "level" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x03C1     ) { Name = "trigger" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x0025     ) { Name = "lives" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1800     ) { Name = "complete" },
-                };
-                break;
-
-            /**********************************************************************************
-                ANCHOR START Magical Taruruuto-kun watchlist
-            **********************************************************************************/
-            case "Magical Taruruuto-kun":
-                vars.levelselectbytes = new byte[] {0xC0};
-                vars.levelselectoffset = (IntPtr)memoryOffset + ( isBigEndian ? 0xFD31 : 0xFD30 );
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xFD4B : 0xFD4A ) ) { Name = "level" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xFEF9 : 0xFEF8 ) ) { Name = "gamemode" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xF806 : 0xF807 ) ) { Name = "menu" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xE19C : 0xE19C ) ) { Name = "clearelement" },
-                    new MemoryWatcher<byte>(  vars.levelselectoffset ) { Name = "levelselect" },
-                };
-                break;
-
-
-            /**********************************************************************************
-                ANCHOR START Mystic Defender watchlist
-            **********************************************************************************/
-            case "Mystic Defender":
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xF627 : 0xF627 ) ) { Name = "stage" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xF629 : 0xF628 ) ) { Name = "level" },
-                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + 0xD010                          ) { Name = "menucheck" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xE61F : 0xE61E ) ) { Name = "bosshp" },
-                };
-                break;
-
-            
-            /**********************************************************************************
-                ANCHOR START Sonic 3D Blast Memory watchlist
-            **********************************************************************************/
             case "Sonic 3D Blast":
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x067F : 0x067E ) ) { Name = "level" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +  0xF749                           ) { Name = "ingame" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xD189 : 0xD188 ) ) { Name = "ppboss" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x0BA9 : 0x0BA8 ) ) { Name = "ffboss" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x06A3 : 0x06A2 ) ) { Name = "emeralds" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x0A1B : 0x0A1A ) ) { Name = "fadeout" },
-                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + 0x0A5C                          ) { Name = "levelframecount" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + 0x040D                          ) { Name = "levelselect" },
-                };
-                vars.levelselectoffset = (IntPtr)memoryOffset + 0x040D;
-                vars.igttotal = 0;
-                vars.isIGT = true;
-                
-                break;
-            /**********************************************************************************
-                ANCHOR START Sonic Eraser 
-            **********************************************************************************/
+            case "Sonic the Hedgehog (Master System)":
             case "Sonic Eraser":
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xC711 : 0xC710 ) ) { Name = "level" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xBE23 : 0xBE24 ) ) { Name = "start" },
-                };
-
+            case "Tiny Toon Adventures: Buster's Hidden Treasure":
+            case "Magical Taruruuto-kun":
+            case "Mystic Defender":
+            case "Sonic CD":
                 break;
-            /**********************************************************************************
-                ANCHOR START Sonic Spinball (Genesis / Mega Drive) 
-            **********************************************************************************/
+            // Chaos aliases
+            case "Sonic Chaos":
+            case "Sonic Chaos (Master System)":
+            case "Sonic Chaos (Game Gear)":
+                vars.gamename = "Sonic Chaos";
+                break;
+            // Spinball aliases
             case "Sonic Spinball":
             case "Sonic Spinball (Genesis / Mega Drive)":
                 vars.gamename = "Sonic Spinball (Genesis / Mega Drive)";
-                vars.levelselectoffset = (IntPtr)memoryOffset + ( isBigEndian ? 0xF8F8 : 0xF8F9 );
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x067F : 0x067E ) ) { Name = "level" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xF2FC : 0xF2FD ) ) { Name = "trigger" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xFF69 : 0xFF68 ) ) { Name = "menuoption" },
-                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + 0xFF6C                            ) { Name = "menutimeout" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x3CB7 : 0x3CB6 ) ) { Name = "gamemode" },
-
-                    new MemoryWatcher<byte>(  vars.levelselectoffset                         ) { Name = "levelselect" },
-                };
-
-                vars.lastmenuoption = 999;
-                vars.skipsplit = false;
+                break;
+            // S2 8 bit aliases
+            case "Sonic the Hedgehog 2 (Game Gear / Master System)":
+            case "Sonic the Hedgehog 2 (Master System)":
+            case "Sonic the Hedgehog 2 (Game Gear)":
+            case "Sonic 2 Rebirth":
+                vars.gamename = "Sonic the Hedgehog 2 (Game Gear / Master System)";
                 break;
             /**********************************************************************************
                 ANCHOR START Sonic the HedgeHog 1 & 2 Genesis watchlist
@@ -246,463 +234,55 @@ init
             case "Sonic 1 (Genesis)":
             case "Sonic 1 (Mega Drive)":
                 vars.gamename = "Sonic the Hedgehog (Genesis / Mega Drive)";
-            
-                const string GREEN_HILL_1 = "0-0";
-                const string GREEN_HILL_2 = "0-1";
-                const string GREEN_HILL_3 = "0-2";
-                const string MARBLE_1 = "2-0";
-                const string MARBLE_2 = "2-1";
-                const string MARBLE_3 = "2-2";
-                const string SPRING_YARD_1 = "4-0";
-                const string SPRING_YARD_2 = "4-1";
-                const string SPRING_YARD_3 = "4-2";
-                const string LABYRINTH_1 = "1-0";
-                const string LABYRINTH_2 = "1-1";
-                const string LABYRINTH_3 = "1-2";
-                const string STAR_LIGHT_1 = "3-0";
-                const string STAR_LIGHT_2 = "3-1";
-                const string STAR_LIGHT_3 = "3-2";
-                const string SCRAP_BRAIN_1 = "5-0";
-                const string SCRAP_BRAIN_2 = "5-1";
-                const string SCRAP_BRAIN_3 = "1-3"; // LUL
-                const string FINAL_ZONE = "5-2"; 
-                const string AFTER_FINAL_ZONE = "99-0";
-                
-                expectednextlevel.Clear();
-                expectednextlevel[GREEN_HILL_1] = GREEN_HILL_2;
-                expectednextlevel[GREEN_HILL_2] = GREEN_HILL_3;
-                expectednextlevel[GREEN_HILL_3] = MARBLE_1;
-                expectednextlevel[MARBLE_1] = MARBLE_2;
-                expectednextlevel[MARBLE_2] = MARBLE_3;
-                expectednextlevel[MARBLE_3] = SPRING_YARD_1;
-                expectednextlevel[SPRING_YARD_1] = SPRING_YARD_2;
-                expectednextlevel[SPRING_YARD_2] = SPRING_YARD_3;
-                expectednextlevel[SPRING_YARD_3] = LABYRINTH_1;
-                expectednextlevel[LABYRINTH_1] = LABYRINTH_2;
-                expectednextlevel[LABYRINTH_2] = LABYRINTH_3;
-                expectednextlevel[LABYRINTH_3] = STAR_LIGHT_1;
-                expectednextlevel[STAR_LIGHT_1] = STAR_LIGHT_2;
-                expectednextlevel[STAR_LIGHT_2] = STAR_LIGHT_3;
-                expectednextlevel[STAR_LIGHT_3] = SCRAP_BRAIN_1;
-                expectednextlevel[SCRAP_BRAIN_1] = SCRAP_BRAIN_2;
-                expectednextlevel[SCRAP_BRAIN_2] = SCRAP_BRAIN_3;
-                expectednextlevel[SCRAP_BRAIN_3] = FINAL_ZONE;
-                expectednextlevel[FINAL_ZONE] = AFTER_FINAL_ZONE; 
-                
-                vars.levelselectoffset = (IntPtr) memoryOffset + ( isBigEndian ? 0xFFE0 : 0xFFE1 );
-                vars.isGenSonic1 = true;
-                goto case "Sonic the Hedgehog 2 (Genesis / Mega Drive)";
+                break;
             case "Sonic the Hedgehog 2 (Genesis / Mega Drive)":
             case "Sonic the Hedgehog 2":
             case "Sonic 2":
             case "Sonic 2 (Genesis)":
             case "Sonic 2 (Mega Drive)":
-                if ( !vars.isGenSonic1 ) {
-                    vars.levelselectoffset = (IntPtr) memoryOffset + ( isBigEndian ? 0xFFD0 : 0xFFD1 );
-
-                    vars.gamename = "Sonic the Hedgehog 2 (Genesis / Mega Drive)";
-                    const string EMERALD_HILL_1 = "0-0";
-                    const string EMERALD_HILL_2 = "0-1";
-                    const string CHEMICAL_PLANT_1 = "13-0";
-                    const string CHEMICAL_PLANT_2 = "13-1";
-                    const string AQUATIC_RUIN_1 = "15-0";
-                    const string AQUATIC_RUIN_2 = "15-1";
-                    const string CASINO_NIGHT_1 = "12-0";
-                    const string CASINO_NIGHT_2 = "12-1";
-                    const string HILL_TOP_1 = "7-0";
-                    const string HILL_TOP_2 = "7-1";
-                    const string MYSTIC_CAVE_1 = "11-0";
-                    const string MYSTIC_CAVE_2 = "11-1";
-                    const string OIL_OCEAN_1 = "10-0";
-                    const string OIL_OCEAN_2 = "10-1";
-                    const string METROPOLIS_1 = "4-0";
-                    const string METROPOLIS_2 = "4-1";
-                    const string METROPOLIS_3 = "5-0";
-                    const string SKY_CHASE = "16-0";
-                    const string WING_FORTRESS = "6-0";
-                    const string DEATH_EGG = "14-0";
-                    const string AFTER_DEATH_EGG = "99-0";
-                    expectednextlevel.Clear();
-                    expectednextlevel[EMERALD_HILL_1] = EMERALD_HILL_2;
-                    expectednextlevel[EMERALD_HILL_2] = CHEMICAL_PLANT_1;
-                    expectednextlevel[CHEMICAL_PLANT_1] = CHEMICAL_PLANT_2;
-                    expectednextlevel[CHEMICAL_PLANT_2] = AQUATIC_RUIN_1;
-                    expectednextlevel[AQUATIC_RUIN_1] = AQUATIC_RUIN_2;
-                    expectednextlevel[AQUATIC_RUIN_2] = CASINO_NIGHT_1;
-                    expectednextlevel[CASINO_NIGHT_1] = CASINO_NIGHT_2;
-                    expectednextlevel[CASINO_NIGHT_2] = HILL_TOP_1;
-                    expectednextlevel[HILL_TOP_1] = HILL_TOP_2;
-                    expectednextlevel[HILL_TOP_2] = MYSTIC_CAVE_1;
-                    expectednextlevel[MYSTIC_CAVE_1] = MYSTIC_CAVE_2;
-                    expectednextlevel[MYSTIC_CAVE_2] = OIL_OCEAN_1;
-                    expectednextlevel[OIL_OCEAN_1] = OIL_OCEAN_2;
-                    expectednextlevel[OIL_OCEAN_2] = METROPOLIS_1;
-                    expectednextlevel[METROPOLIS_1] = METROPOLIS_2;
-                    expectednextlevel[METROPOLIS_2] = METROPOLIS_3;
-                    expectednextlevel[METROPOLIS_3] = SKY_CHASE;
-                    expectednextlevel[SKY_CHASE] = WING_FORTRESS;
-                    expectednextlevel[WING_FORTRESS] = DEATH_EGG;
-                    expectednextlevel[DEATH_EGG] = AFTER_DEATH_EGG;
-                }
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xFE24 : 0xFE25 )    ) { Name = "seconds" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xFE23 : 0xFE22 )    ) { Name = "minutes" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xFE12 : 0xFE13 )    ) { Name = "lives" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xFE18 : 0xFE19 )    ) { Name = "continues" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xFE10 : 0xFE11 )    ) { Name = "zone" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xFE11 : 0xFE10 )    ) { Name = "act" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF600 : 0xF601 )    ) { Name = "trigger" },
-                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xFE04 : 0xFE04 )    ) { Name = "levelframecount" },
-                    new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0xF7D2 ) { Name = "timebonus" },
-                    new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0xFE28 ) { Name = "scoretally" },
-                    new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
-                    new MemoryWatcher<ulong>( (IntPtr)memoryOffset + 0xFB00 ) { Name = "fadeout" },
-
-                };
-                vars.isGenSonic1or2 = true;
-                vars.isIGT = true;
-                vars.hasRTATB = true;
-
-                vars.expectednextlevel = expectednextlevel;
+                vars.gamename = "Sonic the Hedgehog 2 (Genesis / Mega Drive)";
                 break;
             /**********************************************************************************
                 ANCHOR START Sonic the Hedgehog 3 & Knuckles watchlist
             **********************************************************************************/
+            case "Sonic the Hedgehog 3":
+            case "Sonic 3":
+                vars.isS3 = true;
+                vars.levelselectoffset = isBigEndian ? 0xFFD0 : 0xFFD1;
+                goto case "Sonic 3 & Knuckles";
             case "Sonic & Knuckles":
             case "Sonic and Knuckles":
                 vars.isSK = true;
                 goto case "Sonic 3 & Knuckles";
+            case "Sonic & Knuckles - Bonus Stages Only":
+                vars.isSK = true;
+                goto case "Sonic 3 & Knuckles - Bonus Stages Only";
+            case "Sonic 3 & Knuckles - Bonus Stages Only":
+                current.loading = true;
+                vars.gamename = "Sonic 3 & Knuckles - Bonus Stages Only";
+                goto case "GenericS3K";
             case "Sonic 3 & Knuckles":
             case "Sonic 3 and Knuckles":
             case "Sonic 3 Complete":
-            case "Sonic 3 & Knuckles - Bonus Stages Only":
-            case "Sonic & Knuckles - Bonus Stages Only":
-            case "Sonic the Hedgehog 3":
-            case "Sonic 3":
-
-                vars.levelselectoffset = (IntPtr) memoryOffset + ( isBigEndian ? 0xFFE0 : 0xFFE1 );
-                if ( vars.gamename == "Sonic 3" || vars.gamename == "Sonic the Hedgehog 3" ) {
-                    vars.isS3 = true;
-                    vars.levelselectoffset = (IntPtr) memoryOffset + ( isBigEndian ? 0xFFD0 : 0xFFD1 );
+                vars.gamename = "Sonic 3 & Knuckles";
+                goto case "GenericS3K";
+            case "GenericS3K":
+                if ( !vars.isS3 ) {
+                    vars.levelselectoffset =  isBigEndian ? 0xFFE0 : 0xFFE1;
                 }
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xEE4E : 0xEE4F ) ) { Name = "zone", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xEE4F : 0xEE4E ) ) { Name = "act", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + 0xFFFC ) { Name = "reset", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xF600 : 0xF601 ) ) { Name = "trigger" },
-                    new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0xF7D2 ) { Name = "timebonus", Enabled = false },
-                    new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0xFE28 ) { Name = "scoretally", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xFF09 : 0xFF08 ) ) { Name = "chara", Enabled = false },
-                    new MemoryWatcher<ulong>( (IntPtr)memoryOffset + 0xFC00) { Name = "primarybg", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xB1E5 : 0xB1E4 ) ) { Name = "ddzboss", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xB279 : 0xB278 ) ) { Name = "sszboss", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xEEE4 : 0xEEE5 ) ) { Name = "delactive", Enabled = false },
-
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xEF4B : 0xEF4A ) ) { Name = "savefile", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xFDEB : 0xFDEA ) ) { Name = "savefilezone", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + ( isBigEndian ? 0xB15F : 0xB15E ) ) { Name = "s3savefilezone", Enabled = false },
-                    new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + 0xFFB0 ) { Name = "chaosemeralds", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset + 0xFFB1 ) { Name = "superemeralds", Enabled = false },
-                    /* $FFA6-$FFA9  Level number in Blue Sphere  */ 
-                    /* $FFB0 	Number of chaos emeralds  */ 
-                    /* $FFB1 	Number of super emeralds  */ 
-                    /* $FFB2-$FFB8 	Array of finished special stages. Each byte represents one stage: 
-            
-                        0 - special stage not completed 
-                        1 - chaos emerald collected 
-                        2 - super emerald present but grayed 
-                        3 - super emerald present and activated  
-                    */ 
-                };
+                current.primarybg  = 0;
                 vars.expectedzone = 0;
                 vars.expectedact = 1;
                 vars.sszsplit = false; //boss is defeated twice
                 vars.savefile = 255;
                 vars.skipsAct1Split = false;
-                vars.isS3K = true;
                 vars.specialstagetimer = new Stopwatch(); 
-                vars.addspecialstagetime = false; 
+                
                 vars.specialstagetimeadded = false; 
                 vars.gotEmerald = false;
                 vars.chaoscatchall = false;
                 vars.chaossplits = 0;
                 vars.hasRTATB = true;
-                if ( vars.gamename != "Sonic 3 & Knuckles - Bonus Stages Only" && vars.gamename != "Sonic & Knuckles - Bonus Stages Only" ) {
-                    vars.gamename = "Sonic 3 & Knuckles";
-                } else {
-                    vars.isS3K = false;
-                    vars.isS3KBonuses = true;
-                    current.loading = true;
-                    vars.hasRTATB = false;
-                    if ( vars.gamename == "Sonic & Knuckles - Bonus Stages Only" ) {
-                        vars.isSK = true;
-                    }
-                }
-                
-                break;
-            /**********************************************************************************
-                ANCHOR START Sonic the Hedgehog (Master System) watchlist
-            **********************************************************************************/
-            case "Sonic the Hedgehog (Master System)":
-                vars.ringsoffset = (IntPtr)smsMemoryOffset +  0x12AA;
-                vars.leveloffset = (IntPtr)smsMemoryOffset +  0x123E;
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(   vars.leveloffset   ) { Name = "level" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1000     ) { Name = "state" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1203     ) { Name = "input" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12D5     ) { Name = "endBoss" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x122C     ) { Name = "scorescreen" },
-                    new MemoryWatcher<uint>(  (IntPtr)smsMemoryOffset +  0x1212   ) { Name = "timebonus", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1C08   ) { Name = "menucheck1" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1C0A   ) { Name = "menucheck2" },
-                };
-                
-                vars.hasRTATB = true;
-                vars.isSMSS1 = true;
-                break;
-            /**********************************************************************************
-                ANCHOR START Sonic the Hedgehog (Game Gear / Master System) watchlist
-            **********************************************************************************/
-            case "Sonic the Hedgehog 2 (Game Gear / Master System)":
-            case "Sonic 2 Rebirth":
-                vars.gamename = "Sonic the Hedgehog 2 (Game Gear / Master System)";
-                vars.levelselectbytes = new byte[] {0x0D};
-                vars.levelselectoffset = (IntPtr) smsMemoryOffset + 0x112C;
-                vars.emeraldcountoffset = (IntPtr) smsMemoryOffset + 0x12BD;
-                vars.emeraldflagsoffset = (IntPtr) smsMemoryOffset + 0x12C5;
-                vars.startTrigger = 68;
-                vars.isSMSGGSonic2 = true;
-                vars.watchers = new MemoryWatcherList
-                {
-
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12B9     ) { Name = "seconds" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12BA    ) { Name = "minutes" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1298     ) { Name = "lives" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1298 /* for simplicity */    ) { Name = "continues" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1295    ) { Name = "zone" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1296     ) { Name = "act" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1293     ) { Name = "trigger" },
-                    new MemoryWatcher<ushort>(  (IntPtr)smsMemoryOffset + 0x12BA  /* for simplicity */  ) { Name = "levelframecount" },
-                    new MemoryWatcher<byte>( (IntPtr)smsMemoryOffset + 0x12C8     ) { Name = "systemflag" },
-                    new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
-                    new MemoryWatcher<byte>(  vars.emeraldcountoffset     ) { Name = "emeraldcount" },
-                    new MemoryWatcher<byte>(  vars.emeraldflagsoffset     ) { Name = "emeraldflags" },
-                    
-                };
-                vars.isIGT = true;
-                const string UNDER_GROUND_1 = "0-0";
-                const string UNDER_GROUND_2 = "0-1";
-                const string UNDER_GROUND_3 = "0-2";
-                const string SKY_HIGH_1 = "1-0";
-                const string SKY_HIGH_2 = "1-1";
-                const string SKY_HIGH_3 = "1-2";
-                const string AQUA_LAKE_1 = "2-0";
-                const string AQUA_LAKE_2 = "2-1";
-                const string AQUA_LAKE_3 = "2-2";
-                const string GREEN_HILLS_1 = "3-0";
-                const string GREEN_HILLS_2 = "3-1";
-                const string GREEN_HILLS_3 = "3-2";
-                const string GIMMICK_MT_1 = "4-0";
-                const string GIMMICK_MT_2 = "4-1";
-                const string GIMMICK_MT_3 = "4-2";
-                const string SCRAMBLED_EGG_1 = "5-0";
-                const string SCRAMBLED_EGG_2 = "5-1";
-                const string SCRAMBLED_EGG_3 = "5-2";
-                const string CRYSTAL_EGG_1 = "6-0";
-                const string CRYSTAL_EGG_2 = "6-1";
-                const string CRYSTAL_EGG_3 = "6-2";
-                const string S2SMS_GOOD_CREDITS = "7-1"; // Good Ending Credits
-                const string S2SMS_END = "99-0"; // Good Ending Credits
-                expectednextlevel.Clear();
-                expectednextlevel[UNDER_GROUND_1] = UNDER_GROUND_2;
-                expectednextlevel[UNDER_GROUND_2] = UNDER_GROUND_3;
-                expectednextlevel[UNDER_GROUND_3] = SKY_HIGH_1;
-                expectednextlevel[SKY_HIGH_1] = SKY_HIGH_2;
-                expectednextlevel[SKY_HIGH_2] = SKY_HIGH_3;
-                expectednextlevel[SKY_HIGH_3] = AQUA_LAKE_1;
-                expectednextlevel[AQUA_LAKE_1] = AQUA_LAKE_2;
-                expectednextlevel[AQUA_LAKE_2] = AQUA_LAKE_3;
-                expectednextlevel[AQUA_LAKE_3] = GREEN_HILLS_1;
-                expectednextlevel[GREEN_HILLS_1] = GREEN_HILLS_2;
-                expectednextlevel[GREEN_HILLS_2] = GREEN_HILLS_3;
-                expectednextlevel[GREEN_HILLS_3] = GIMMICK_MT_1;
-                expectednextlevel[GIMMICK_MT_1] = GIMMICK_MT_2;
-                expectednextlevel[GIMMICK_MT_2] = GIMMICK_MT_3;
-                expectednextlevel[GIMMICK_MT_3] = SCRAMBLED_EGG_1;
-                expectednextlevel[SCRAMBLED_EGG_1] = SCRAMBLED_EGG_2;
-                expectednextlevel[SCRAMBLED_EGG_2] = SCRAMBLED_EGG_3;
-                expectednextlevel[SCRAMBLED_EGG_3] = CRYSTAL_EGG_1;
-                expectednextlevel[CRYSTAL_EGG_1] = CRYSTAL_EGG_2;
-                expectednextlevel[CRYSTAL_EGG_2] = CRYSTAL_EGG_3;
-                expectednextlevel[CRYSTAL_EGG_3] = S2SMS_GOOD_CREDITS;
-                expectednextlevel[S2SMS_GOOD_CREDITS] = S2SMS_END;
-                vars.expectednextlevel = expectednextlevel;
-                break;
-            /**********************************************************************************
-                ANCHOR START Sonic Chaos watchlist
-            **********************************************************************************/
-            case "Sonic Chaos":
-
-                byte chaosPlatform = memory.ReadValue<byte>((IntPtr) smsMemoryOffset + 0x111E );
-                byte extraGGOffset = 0x0;
-                switch( chaosPlatform ) {
-                    case 0x06: 
-                        extraGGOffset = 0x02;
-                        break;
-                    case 0x26:
-                        // Master System
-                        break;
-                    default:
-                        Thread.Sleep(500);
-                        throw new NullReferenceException (String.Format("Can't Determine platform for Sonic Chaos {0}", chaosPlatform ));
-                }
-
-                vars.levelselectoffset = (IntPtr) smsMemoryOffset + 0x12CE + extraGGOffset;
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12C9 + extraGGOffset    ) { Name = "level" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1297 + extraGGOffset    ) { Name = "zone" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1298 + extraGGOffset    ) { Name = "act" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x1299 + extraGGOffset    ) { Name = "lives" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x12C3 + extraGGOffset    ) { Name = "continues" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x13E7     ) { Name = "endBoss" },
-                    new MemoryWatcher<byte>(  (IntPtr)smsMemoryOffset +  0x03C1     ) { Name = "trigger" },
-                    new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
-                };
-
-                const string TURQUOISE_HILL_1 = "0-0";
-                const string TURQUOISE_HILL_2 = "0-1";
-                const string TURQUOISE_HILL_3 = "0-2";
-                const string GIGALOPOLIS_1 = "1-0";
-                const string GIGALOPOLIS_2 = "1-1";
-                const string GIGALOPOLIS_3 = "1-2";
-                const string SLEEPING_EGG_1 = "2-0";
-                const string SLEEPING_EGG_2 = "2-1";
-                const string SLEEPING_EGG_3 = "2-2";
-                const string MECHA_GREEN_HILL_1 = "3-0";
-                const string MECHA_GREEN_HILL_2 = "3-1";
-                const string MECHA_GREEN_HILL_3 = "3-2";
-                const string AQUA_PLANET_1 = "4-0";
-                const string AQUA_PLANET_2 = "4-1";
-                const string AQUA_PLANET_3 = "4-2";
-                const string ELECTRIC_EGG_1 = "5-0";
-                const string ELECTRIC_EGG_2 = "5-1";
-                const string ELECTRIC_EGG_3 = "5-2";
-                const string AFTER_ELECTRIC_EGG_3 = "99-0";
-                expectednextlevel.Clear();
-                expectednextlevel[TURQUOISE_HILL_1] = TURQUOISE_HILL_2;
-                expectednextlevel[TURQUOISE_HILL_2] = TURQUOISE_HILL_3;
-                expectednextlevel[TURQUOISE_HILL_3] = GIGALOPOLIS_1;
-                expectednextlevel[GIGALOPOLIS_1] = GIGALOPOLIS_2;
-                expectednextlevel[GIGALOPOLIS_2] = GIGALOPOLIS_3;
-                expectednextlevel[GIGALOPOLIS_3] = SLEEPING_EGG_1;
-                expectednextlevel[SLEEPING_EGG_1] = SLEEPING_EGG_2;
-                expectednextlevel[SLEEPING_EGG_2] = SLEEPING_EGG_3;
-                expectednextlevel[SLEEPING_EGG_3] = MECHA_GREEN_HILL_1;
-                expectednextlevel[MECHA_GREEN_HILL_1] = MECHA_GREEN_HILL_2;
-                expectednextlevel[MECHA_GREEN_HILL_2] = MECHA_GREEN_HILL_3;
-                expectednextlevel[MECHA_GREEN_HILL_3] = AQUA_PLANET_1;
-                expectednextlevel[AQUA_PLANET_1] = AQUA_PLANET_2;
-                expectednextlevel[AQUA_PLANET_2] = AQUA_PLANET_3;
-                expectednextlevel[AQUA_PLANET_3] = ELECTRIC_EGG_1;
-                expectednextlevel[ELECTRIC_EGG_1] = ELECTRIC_EGG_2;
-                expectednextlevel[ELECTRIC_EGG_2] = ELECTRIC_EGG_3;
-                expectednextlevel[ELECTRIC_EGG_3] = AFTER_ELECTRIC_EGG_3;
-
-                vars.isSonicChaos = true;
-                vars.expectednextlevel = expectednextlevel;
-                break;
-            /**********************************************************************************
-                ANCHOR START Sonic CD '93 watchlist
-            **********************************************************************************/
-            case "Sonic CD":
-                const string 
-                    PALMTREE_PANIC_1    = "0-0", PALMTREE_PANIC_2    = "0-1", PALMTREE_PANIC_3    = "0-2",
-                    COLLISION_CHAOS_1   = "1-0", COLLISION_CHAOS_2   = "1-1", COLLISION_CHAOS_3   = "1-2",
-                    TIDAL_TEMPEST_1     = "2-0", TIDAL_TEMPEST_2     = "2-1", TIDAL_TEMPEST_3     = "2-2",
-                    QUARTZ_QUADRANT_1   = "3-0", QUARTZ_QUADRANT_2   = "3-1", QUARTZ_QUADRANT_3   = "3-2", 
-                    WACKY_WORKBENCH_1   = "4-0", WACKY_WORKBENCH_2   = "4-1", WACKY_WORKBENCH_3   = "4-2", 
-                    STARDUST_SPEEDWAY_1 = "5-0", STARDUST_SPEEDWAY_2 = "5-1", STARDUST_SPEEDWAY_3 = "5-2", 
-                    METALLIC_MADNESS_1  = "6-0", METALLIC_MADNESS_2  = "6-1", METALLIC_MADNESS_3  = "6-2", 
-                    AFTER_METALLIC_MADNESS_3 = "99-0";
-                
-                var scdexpectednextlevel = new Dictionary<string, string>() {
-                    { PALMTREE_PANIC_1,     /* -> */ PALMTREE_PANIC_2    },
-                    { PALMTREE_PANIC_2,     /* -> */ PALMTREE_PANIC_3    },
-                    { PALMTREE_PANIC_3,     /* -> */ COLLISION_CHAOS_1   },
-                    { COLLISION_CHAOS_1,    /* -> */ COLLISION_CHAOS_2   },
-                    { COLLISION_CHAOS_2,    /* -> */ COLLISION_CHAOS_3   },
-                    { COLLISION_CHAOS_3,    /* -> */ TIDAL_TEMPEST_1     },
-                    { TIDAL_TEMPEST_1,      /* -> */ TIDAL_TEMPEST_2     },
-                    { TIDAL_TEMPEST_2,      /* -> */ TIDAL_TEMPEST_3     },
-                    { TIDAL_TEMPEST_3,      /* -> */ QUARTZ_QUADRANT_1   },
-                    { QUARTZ_QUADRANT_1,    /* -> */ QUARTZ_QUADRANT_2   },
-                    { QUARTZ_QUADRANT_2,    /* -> */ QUARTZ_QUADRANT_3   },
-                    { QUARTZ_QUADRANT_3,    /* -> */ WACKY_WORKBENCH_1   },
-                    { WACKY_WORKBENCH_1,    /* -> */ WACKY_WORKBENCH_2   },
-                    { WACKY_WORKBENCH_2,    /* -> */ WACKY_WORKBENCH_3   },
-                    { WACKY_WORKBENCH_3,    /* -> */ STARDUST_SPEEDWAY_1 },
-                    { STARDUST_SPEEDWAY_1,  /* -> */ STARDUST_SPEEDWAY_2 },
-                    { STARDUST_SPEEDWAY_2,  /* -> */ STARDUST_SPEEDWAY_3 },
-                    { STARDUST_SPEEDWAY_3,  /* -> */ METALLIC_MADNESS_1  },
-                    { METALLIC_MADNESS_1,   /* -> */ METALLIC_MADNESS_2  },
-                    { METALLIC_MADNESS_2,   /* -> */ METALLIC_MADNESS_3  },
-                    { METALLIC_MADNESS_3,   /* -> */ AFTER_METALLIC_MADNESS_3 }
-                };
-
-    
-                vars.expectednextlevel = scdexpectednextlevel;
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1516 : 0x1517 )    ) { Name = "seconds" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1515 : 0x1514 )    ) { Name = "minutes" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1508 : 0x1509 )    ) { Name = "lives" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1508 : 0x1509 )    ) { Name = "continues" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1506 : 0x1507 )    ) { Name = "zone" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1507 : 0x1506 )    ) { Name = "act" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xFA0E : 0xFA0F )    ) { Name = "trigger" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x152E : 0x152F )    ) { Name = "timeperiod" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1517 : 0x1516 )    ) { Name = "framesinsecond" },
-                    
-                    
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1571 : 0x1570 )    ) { Name = "timewarpminutes" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1572 : 0x1573 )    ) { Name = "timewarpseconds" },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0x1573 : 0x1572 )    ) { Name = "timewarpframesinsecond" },
-
-                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset + ( isBigEndian ? 0x1504 : 0x1504 )    ) { Name = "levelframecount" },
-                    new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0xF7D2 ) { Name = "timebonus" },
-                    new MemoryWatcher<ushort>((IntPtr)memoryOffset + 0x151A ) { Name = "scoretally" },
-                    new MemoryWatcher<ulong>( (IntPtr)memoryOffset + 0xFB00 ) { Name = "fadeout" },
-                    //new MemoryWatcher<byte>(  vars.levelselectoffset     ) { Name = "levelselect" },
-
-                };
-                vars.isIGT = true;
-                vars.isSonicCD = true;
-                vars.startTrigger = 1;
-                vars.ms = 0;
-                vars.waitforminutes = 0;
-                vars.waitforseconds = 0;
-                vars.waitforframes = 0;
-                vars.wait = false;
-                break;
-        /**********************************************************************************
-            ANCHOR START Tiny Toon Adventures: Buster's Hidden Treasure watchlist
-        **********************************************************************************/
-            case "Tiny Toon Adventures: Buster's Hidden Treasure":
-                vars.watchers = new MemoryWatcherList
-                {
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF92F : 0xF92E )    ) { Name = "menuoption"  },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF90C : 0xF90D )    ) { Name = "inmenu"  },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF907 : 0xF906 )    ) { Name = "trigger"  },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF973 : 0xF973 )    ) { Name = "level", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF01E : 0xF01F )    ) { Name = "roundcleartrigger" },
-                    new MemoryWatcher<ushort>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xB7C0 : 0xB7C0 )    ) { Name = "roundclear", Enabled = false },
-                    new MemoryWatcher<byte>(  (IntPtr)memoryOffset +   ( isBigEndian ? 0xF8FF : 0xF8FE )    ) { Name = "bosskill" },
-                };
                 break;
             default:
                 throw new NullReferenceException (String.Format("Game {0} not supported.", vars.gamename ));
@@ -710,124 +290,115 @@ init
             
         }
         vars.DebugOutput("Game from LiveSplit found: " + vars.gamename);
-    };
-    vars.reInitialise = reInitialise;
+    });
+
     vars.reInitialise();
 }
 
 update
 {
+    var start = false;
+    var split = false;
+    var reset = false;
+    string currentlevel = "";
+    bool isBigEndian = vars.isBigEndian;
+    var gametime = TimeSpan.FromDays(999);
+    var oldgametime = gametime;
+    bool lschanged = false;
     const ulong WHITEOUT = 0x0EEE0EEE0EEE0EEE;
-    if ( settings["levelselect"] && vars.watchers["levelselect"].Enabled == false ) {
-        vars.watchers["levelselect"].Enabled = true;
-    }
 
 
     uint changed = 0;
+    uint watchercount = 0;
     string changednames = "";
+    bool hasLevelSelect = false;
     //vars.watchers.UpdateAll(game);
+    bool runJustStarted = !vars.ingame && timer.CurrentPhase == TimerPhase.Running;
+    
+    if ( runJustStarted ) {
+        //pressed start run or autostarted run
+        vars.DebugOutput("run start detected");
+        vars.igttotal = 0;
+        vars.ms = 0;
+        vars.ingame = true;
+        current.timebonus = 0;
+        current.scoretally = 0;
+        if ( vars.isGenSonic1or2 ) {
+            //current.loading = true;
+            current.hascontinue = false;
+        }
+        if ( vars.isSonicCD ) {
+            current.totalseconds = 0;
+            vars.wait = false;
+        }
+        
+    } else if ( vars.ingame && !( timer.CurrentPhase == TimerPhase.Running || timer.CurrentPhase == TimerPhase.Paused ) ) {
+        vars.DebugOutput("run stop detected");
+        current.loading = false;
+        old.loading = false;
+        vars.ingame = false;
+        vars.stopwatch.Reset();
+        return false;
+    }
     foreach ( var watcher in vars.watchers ) {
+        watchercount++;
         bool watcherchanged = watcher.Update(game);
+        
         if ( watcherchanged ) {
             changed++;
             if ( settings["extralogging"] ) {
                 changednames = changednames + watcher.Name + " ";
             }
         }
-    }
-    if ( vars.isSMSGGSonic2 && vars.watchers["systemflag"].Current == 1 ) {
-        vars.levelselectbytes = new byte[] { 0xB6 };
-    }
-    bool lschanged = false;
-    if ( (long) vars.levelselectoffset > 0 && settings["levelselect"] && vars.watchers["levelselect"].Current != vars.levelselectbytes[0] ) {
-        vars.DebugOutput(String.Format("Enabling Level Select at {0:X8} with {1} because it was {2}", vars.levelselectoffset,  vars.levelselectbytes[0], vars.watchers["levelselect"].Current));
-        
-        game.WriteBytes( (IntPtr) vars.levelselectoffset, (byte[]) vars.levelselectbytes );
-        lschanged = true;
-    }
-    if ( changed == 0 ) {
-        vars.emuoffsets.UpdateAll(game);
-        if ( vars.livesplitGameName != timer.Run.GameName || vars.emuoffsets["genesis"].Old != vars.emuoffsets["genesis"].Current || vars.emuoffsets["baseaddress"].Current != vars.emuoffsets["baseaddress"].Old ) {
-            vars.DebugOutput("Game in Livesplit changed or memory address changed, reinitialising...");
-            vars.gamename = timer.Run.GameName;
-            vars.reInitialise();
+        if ( watcher.Name == "levelselect" ) {
+            hasLevelSelect = true;
         }
-        return vars.stopwatch.IsRunning || lschanged;
     }
-    if ( settings["extralogging"] ) {
-        vars.DebugOutput(String.Format( "{0} things changed: " + changednames, changed ) );
+    if ( watchercount == 0 ) {
+        current.start = false;
+        current.split = false;
+        current.reset = false;
     }
-    var start = false;
-    var split = false;
-    var reset = false;
-
-    if ( vars.splitInXFrames == 0 ) {
-        vars.splitInXFrames = -1;
-        split = true;
-    } else if ( vars.splitInXFrames > 0 ) {
-        vars.splitInXFrames--;
-    }
-
-
-
-    if ( !vars.ingame && timer.CurrentPhase == TimerPhase.Running) {
-        //pressed start run or autostarted run
-        
-        vars.DebugOutput("run start detected");
-        vars.igttotal = 0;
-        vars.ms = 0;
-        vars.ingame = true;
-        vars.juststarted = false;
-        current.timebonus = 0;
-        current.scoretally = 0;
-        if ( vars.isGenSonic1or2 ) {
-            current.loading = true;
-            current.hascontinue = false;
+    if ( watchercount > 0 ) {
+        if ( settings["levelselect"] && hasLevelSelect ) {
+            lschanged = vars.activateLevelSelect();
         }
-        if ( vars.isSonicCD ) {
-            current.totalseconds = 0;
-            vars.waitforminutes = 0;
-            vars.waitforseconds = 0;
-            vars.waitforframes = 0;
-            vars.wait = false;
+        if ( vars.splitInXFrames == 0 ) {
+            vars.splitInXFrames = -1;
+            split = true;
+        } else if ( vars.splitInXFrames > 0 ) {
+            vars.splitInXFrames--;
         }
-        if ( vars.isS3K || vars.isS3KBonuses ) {
-            if ( vars.expectedzone != 7 ) {
-                vars.expectedzone = 0;
+        if ( changed == 0 && !runJustStarted ) {
+            vars.emuoffsets.UpdateAll(game);
+            if ( vars.livesplitGameName != timer.Run.GameName || vars.emuoffsets["genesis"].Old != vars.emuoffsets["genesis"].Current || vars.emuoffsets["baseaddress"].Current != vars.emuoffsets["baseaddress"].Old ) {
+                vars.DebugOutput("Game in Livesplit changed or memory address changed, reinitialising...");
+                vars.gamename = timer.Run.GameName;
+                vars.reInitialise();
             }
-            vars.expectedact = 1;
-            vars.sszsplit = false;
-            vars.skipsAct1Split = !settings["actsplit"];
-            vars.specialstagetimer = new Stopwatch(); 
-            vars.addspecialstagetime = false;
-            vars.specialstagetimeadded = false;
-            vars.specialstagetimer.Reset();
-            vars.gotEmerald = false;
-            vars.chaoscatchall = false;
-            vars.chaossplits = 0;
-            if ( vars.isS3KBonuses ) {
-                current.loading = true;
-                vars.juststarted = true;
-                vars.DebugOutput("S3K Bonuses");
-            }
+            return vars.stopwatch.IsRunning || lschanged || vars.juststarted || split;
         }
-        
-    } else if ( vars.ingame && !( timer.CurrentPhase == TimerPhase.Running || timer.CurrentPhase == TimerPhase.Paused ) ) {
-        vars.DebugOutput("run stop detected");
-        vars.ingame = false;
-        return false;
+        if ( settings["extralogging"] ) {
+            vars.DebugOutput(String.Format( "{0} things changed: " + changednames, changed ) );
+        }
+
     }
-
-
-    var gametime = TimeSpan.FromDays(999);
-    var oldgametime = gametime;
-
 
     switch ( (string) vars.gamename ) {
         /**********************************************************************************
             ANCHOR START Alex Kidd in Miracle World Support
         **********************************************************************************/
         case "Alex Kidd in Miracle World":
+            if ( watchercount == 0 ) {
+                vars.isSMS = true;
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level", 0x0023  },
+                    { "trigger", 0x03C1 },
+                    { "lives", 0x0025 },
+                    { "complete", 0x1800 }
+                });
+                return false;
+            }
             if ( !vars.ingame && vars.watchers["level"].Current == 1 && vars.watchers["trigger"].Current == 1 ) {
                 // Have control so start timer
                 start = true;
@@ -854,71 +425,58 @@ update
             ANCHOR START Magical Taruruuto-kun Support
         **********************************************************************************/
         case "Magical Taruruuto-kun":
-            if ( !vars.ingame && vars.watchers["gamemode"].Old == 1 && vars.watchers["gamemode"].Current == 1 && vars.watchers["level"].Current == 1) {
+            if ( watchercount == 0 ) {
+                vars.levelselectbytes = new byte[] {0xC0};
+                vars.levelselectoffset =  isBigEndian ? 0xFD31 : 0xFD30 ;
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level",        isBigEndian ? 0xFD4B : 0xFD4A },
+                    { "gamemode",     isBigEndian ? 0xFEF9 : 0xFEF8 },
+                    { "menu",         isBigEndian ? 0xF806 : 0xF807 },
+                    { "clearelement", isBigEndian ? 0xF973 : 0xF973 },
+                    { "levelselect",  vars.levelselectoffset }
+                });
+                return false;
+            }
+            MemoryWatcher<byte> mtkgamemode     = vars.watchers["gamemode"],        mtklevel = vars.watchers["level"],
+                                mtkclearelement = vars.watchers["clearelement"],    mtkmenu = vars.watchers["menu"];
+
+            if ( !vars.ingame && mtkgamemode.Old == 1 && mtkgamemode.Current == 1 && mtklevel.Current == 1) {
                 start = true;
             }
 
-
             if ( vars.ingame ) {
-
-                if ( vars.watchers["level"].Current == 67 && vars.watchers["clearelement"].Current == 2 ) {
+                if ( mtklevel.Current == 67 && mtkclearelement.Current == 2 ) {
                     split = true;
                 }
-                if ( vars.watchers["level"].Current > vars.watchers["level"].Old ) {
+                if ( mtklevel.Current > mtklevel.Old ) {
                     /*
                         Stages:
-                        3 Honmaru (help?)
-                        5 Harakko (autoscroller boss)
                         6 Jabao (footballer boss) Stage 1 boss
-                        14 Ria (help?)
                         15 Mikotaku (boss)
                         19 Mimora (boss) Stage 2 boss
-                        21 Door
                         22 vamp boss?
-                        23 Ijigawa (help?)
-                        26 Door
-                        27 Shogunnosuke (help?)
                         31 Dowahha (boss) Stage 3 boss
                         33 Return of Harakko (autoscroller boss)
-                        34 Demo
-                        47 Nilulu (help?)
-                        62 Ohaya (help?)
                         67 Rivar
 
                     */
                     if ( settings["mtk_before"] ) {
-                        switch ( (int) vars.watchers["level"].Current ) {
-                            case 6:
-                            case 15:
-                            case 19:
-                            case 22:
-                            case 31:
-                            case 33:
-                            case 67:
+                        switch ( (int) mtklevel.Current ) {
+                            case 6: case 15: case 19: case 22: case 31: case 33: case 67:
                                 split = true;
                                 break;
                         }
                     }
                     if ( settings["mtk_after"] ) {
-                        switch ( (int) vars.watchers["level"].Old ) {
-                            case 6:
-                            case 15:
-                            case 19:
-                            case 22:
-                            case 31:
-                            case 33:
+                        switch ( (int) mtklevel.Old ) {
+                            case 6: case 15: case 19: case 22: case 31: case 33:
                                 split = true;
                                 break;
                         }
                     }
-                    if ( vars.watchers["level"].Old == 67 ) {
-                        split = true;
-                    }
-
-
                 }
 
-                if ( vars.watchers["gamemode"].Current == 0 && vars.watchers["menu"].Old == 0 && vars.watchers["menu"].Current == 1) {
+                if ( mtkgamemode.Current == 0 && mtkmenu.Old == 0 && mtkmenu.Current == 1) {
                     reset = true;
                 }
             }
@@ -928,6 +486,19 @@ update
             ANCHOR START Mystic Defender Support
         **********************************************************************************/
         case "Mystic Defender":
+            if ( watchercount == 0 ) {
+
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "stage",  isBigEndian ? 0xF627 : 0xF627 },
+                    { "level",  isBigEndian ? 0xF629 : 0xF628 },
+                    { "bosshp", isBigEndian ? 0xE61F : 0xE61E }
+
+                });
+                vars.addUShortAddresses(new Dictionary<string, long>() {
+                    { "menucheck", 0xD010 }
+                });
+                return false;
+            }
             current.menucheck = vars.watchers["menucheck"].Current;
             if ( vars.isBigEndian ) {
                 current.menucheck = vars.SwapEndianness(current.menucheck);
@@ -955,7 +526,23 @@ update
             ANCHOR START Tiny Toon Adventures: Buster's Hidden Treasure 
         **********************************************************************************/
         case "Tiny Toon Adventures: Buster's Hidden Treasure":
-            //vars.DebugOutput( String.Format( "inmenu: {0}, menuoption: {1}, trigger: {2}, roundclear: {3}, bosskill: {4}", vars.watchers["inmenu"].Current, vars.watchers["menuoption"].Current, vars.watchers["trigger"].Current, vars.watchers["roundclear"].Current, vars.watchers["bosskill"].Current));
+            if ( watchercount == 0 ) {
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "menuoption",         ( vars.isBigEndian ? 0xF92F : 0xF92E ) },
+                    { "inmenu",             ( vars.isBigEndian ? 0xF90C : 0xF90D ) },
+                    { "trigger",            ( vars.isBigEndian ? 0xF907 : 0xF906 ) },
+                    { "level",              ( vars.isBigEndian ? 0xF973 : 0xF973 ) },
+                    { "roundcleartrigger",  ( vars.isBigEndian ? 0xF01E : 0xF01F ) },
+                    { "bosskill",           ( vars.isBigEndian ? 0xF8FF : 0xF8FE ) }
+                });
+                vars.addUShortAddresses(new Dictionary<string, long>() {
+                    { "roundclear", ( vars.isBigEndian ? 0xB7C0 : 0xB7C0 ) }
+                });
+                vars.watchers["level"].Enabled = false;
+                vars.watchers["roundclear"].Enabled = false;
+                return false;
+            }
+            
             if ( vars.watchers["inmenu"].Current == 0 && vars.watchers["inmenu"].Old == 1 && vars.watchers["menuoption"].Current == 0 && vars.watchers["trigger"].Old == 5 && vars.watchers["trigger"].Current == 6 ) {
                 vars.watchers["roundclear"].Enabled  = false;
                 start = true;
@@ -964,13 +551,11 @@ update
             if ( vars.watchers["trigger"].Current == 5 &&  vars.watchers["trigger"].Old < 5 ) {
                 reset = true;
             }
-            //vars.DebugOutput(String.Format("Eh {0} {1}", vars.watchers["roundcleartrigger"].Current, vars.watchers["roundcleartrigger"].Old));
+            
             if ( vars.watchers["roundcleartrigger"].Changed && vars.watchers["roundcleartrigger"].Current == 1 ) {
                 vars.watchers["roundclear"].Enabled  = true;
                 vars.watchers["roundclear"].Reset();
             }
-            
-            
             
             if ( 
                 (
@@ -989,9 +574,27 @@ update
             ANCHOR START Sonic 3D Blast Support
         **********************************************************************************/
         case "Sonic 3D Blast":
-            if(!((IDictionary<String, object>)old).ContainsKey("igt")) {
-                old.igt = vars.watchers["levelframecount"].Old;
+            if ( watchercount == 0 ) {
+                vars.levelselectoffset = 0x040D;
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level",          isBigEndian ? 0x067F : 0x067E },
+                    { "ingame",         0xF749 },
+                    { "ppboss",         isBigEndian ? 0xD189 : 0xD188 },
+                    { "ffboss",         isBigEndian ? 0x0BA9 : 0x0BA8 },
+                    { "emeralds",       isBigEndian ? 0x06A3 : 0x06A2 },
+                    { "fadeout",        isBigEndian ? 0x0A1B : 0x0A1A },
+                    { "levelselect",    vars.levelselectoffset }
+                    
+                });
+                vars.addUShortAddresses(new Dictionary<string, long>() {
+                    { "levelframecount", 0x0A5C }
+                });
+                vars.igttotal = 0;
+                vars.isIGT = true;
+                current.igt = 0;
+                return false;
             }
+
             var lfc = vars.watchers["levelframecount"].Current;
             if ( vars.isBigEndian ) {
                 lfc = vars.SwapEndianness(lfc);
@@ -1038,7 +641,13 @@ update
             ANCHOR START Sonic Eraser
         **********************************************************************************/
         case "Sonic Eraser":
-
+            if ( watchercount == 0 ) {
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level", vars.isBigEndian ? 0xC711 : 0xC710  },
+                    { "start", vars.isBigEndian ? 0xBE23 : 0xBE24 },
+                });
+                return false;
+            }
             if ( vars.watchers["start"].Old == 255 && vars.watchers["start"].Current == 1 ) {
                 start = true;
             }
@@ -1055,6 +664,23 @@ update
             ANCHOR START Sonic Spinball (Genesis / Mega Drive) 
         **********************************************************************************/
         case "Sonic Spinball (Genesis / Mega Drive)":
+            if ( watchercount == 0 ) {
+                vars.levelselectoffset = isBigEndian ? 0xF8F8 : 0xF8F9;
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level", isBigEndian ? 0x067F : 0x067E },
+                    { "trigger", isBigEndian ? 0xF2FC : 0xF2FD },
+                    { "menuoption", isBigEndian ? 0xFF69 : 0xFF68 },
+                    { "gamemode", isBigEndian ? 0x3CB7 : 0x3CB6 },
+                    { "levelselect", vars.levelselectoffset }
+
+                });
+                vars.addUShortAddresses(new Dictionary<string, long>() {
+                    { "menutimeout", 0xFF6C }
+                });
+
+                vars.lastmenuoption = 999;
+                vars.skipsplit = false;
+            }
             var menutimeout = vars.watchers["menutimeout"].Old;
             if ( vars.isBigEndian ) {
                 menutimeout = vars.SwapEndianness( menutimeout );
@@ -1126,64 +752,583 @@ update
                 }
             }
             break;
+
+        case "Sonic Chaos":
+            const string 
+                TURQUOISE_HILL_1   = "0-0", TURQUOISE_HILL_2   = "0-1", TURQUOISE_HILL_3   = "0-2",
+                GIGALOPOLIS_1      = "1-0", GIGALOPOLIS_2      = "1-1", GIGALOPOLIS_3      = "1-2",
+                SLEEPING_EGG_1     = "2-0", SLEEPING_EGG_2     = "2-1", SLEEPING_EGG_3     = "2-2",
+                MECHA_GREEN_HILL_1 = "3-0", MECHA_GREEN_HILL_2 = "3-1", MECHA_GREEN_HILL_3 = "3-2",
+                AQUA_PLANET_1      = "4-0", AQUA_PLANET_2      = "4-1", AQUA_PLANET_3      = "4-2",
+                ELECTRIC_EGG_1     = "5-0", ELECTRIC_EGG_2     = "5-1", ELECTRIC_EGG_3     = "5-2",
+                AFTER_ELECTRIC_EGG_3 = "99-0";
+            if ( watchercount == 0 ) {
+                vars.isSMS = true;
+                byte extraGGOffset = 0x0;
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "platform", 0x111E }
+                });
+
+                vars.watchers["platform"].Update(game);
+                switch( (int) vars.watchers["platform"].Current ) {
+                    case 0x06: 
+                        extraGGOffset = 0x02;
+                        break;
+                    case 0x26:
+                        // Master System
+                        break;
+                    default:
+
+                    vars.DebugOutput(String.Format("Can't Determine platform for Sonic Chaos {0}", vars.watchers["platform"].Current ));
+                    vars.watchers =  new MemoryWatcherList {};
+                    return false;
+                }
+                vars.levelselectoffset = 0x12CE + extraGGOffset;
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level", 0x12C9 + extraGGOffset },
+                    { "zone", 0x1297 + extraGGOffset },
+                    { "act", 0x1298 + extraGGOffset },
+                    { "lives", 0x1299 + extraGGOffset },
+                    { "continues", 0x12C3 + extraGGOffset },
+                    { "endBoss", 0x13E7 },
+                    { "trigger", 0x03C1  },
+                    { "levelselect", vars.levelselectoffset }
+                });
+
+                vars.expectednextlevel = new Dictionary<string, string>() {
+                    { TURQUOISE_HILL_1,      /* -> */ TURQUOISE_HILL_2 },
+                    { TURQUOISE_HILL_2,      /* -> */ TURQUOISE_HILL_3 },
+                    { TURQUOISE_HILL_3,      /* -> */ GIGALOPOLIS_1 },
+                    { GIGALOPOLIS_1,         /* -> */ GIGALOPOLIS_2 },
+                    { GIGALOPOLIS_2,         /* -> */ GIGALOPOLIS_3 },
+                    { GIGALOPOLIS_3,         /* -> */ SLEEPING_EGG_1 },
+                    { SLEEPING_EGG_1,        /* -> */ SLEEPING_EGG_2 },
+                    { SLEEPING_EGG_2,        /* -> */ SLEEPING_EGG_3 },
+                    { SLEEPING_EGG_3,        /* -> */ MECHA_GREEN_HILL_1 },
+                    { MECHA_GREEN_HILL_1,    /* -> */ MECHA_GREEN_HILL_2 },
+                    { MECHA_GREEN_HILL_2,    /* -> */ MECHA_GREEN_HILL_3 },
+                    { MECHA_GREEN_HILL_3,    /* -> */ AQUA_PLANET_1 },
+                    { AQUA_PLANET_1,         /* -> */ AQUA_PLANET_2 },
+                    { AQUA_PLANET_2,         /* -> */ AQUA_PLANET_3 },
+                    { AQUA_PLANET_3,         /* -> */ ELECTRIC_EGG_1 },
+                    { ELECTRIC_EGG_1,        /* -> */ ELECTRIC_EGG_2 },
+                    { ELECTRIC_EGG_2,        /* -> */ ELECTRIC_EGG_3 },
+                    { ELECTRIC_EGG_3,        /* -> */ AFTER_ELECTRIC_EGG_3 }
+                };
+                vars.isSonicChaos = true;
+                
+            }
+
+            goto case "GenericNextLevelSplitter";
         /**********************************************************************************
             ANCHOR START Sonic the Hedgehog 1 & 2 Genesis & 2 8 bit support
         **********************************************************************************/
-        case "Sonic the Hedgehog (Genesis / Mega Drive)":
-        case "Sonic the Hedgehog 2 (Genesis / Mega Drive)":
         case "Sonic the Hedgehog 2 (Game Gear / Master System)":
-        case "Sonic Chaos":
+            const string UNDER_GROUND_1 = "0-0";
+            const string UNDER_GROUND_2 = "0-1";
+            const string UNDER_GROUND_3 = "0-2";
+            const string SKY_HIGH_1 = "1-0";
+            const string SKY_HIGH_2 = "1-1";
+            const string SKY_HIGH_3 = "1-2";
+            const string AQUA_LAKE_1 = "2-0";
+            const string AQUA_LAKE_2 = "2-1";
+            const string AQUA_LAKE_3 = "2-2";
+            const string GREEN_HILLS_1 = "3-0";
+            const string GREEN_HILLS_2 = "3-1";
+            const string GREEN_HILLS_3 = "3-2";
+            const string GIMMICK_MT_1 = "4-0";
+            const string GIMMICK_MT_2 = "4-1";
+            const string GIMMICK_MT_3 = "4-2";
+            const string SCRAMBLED_EGG_1 = "5-0";
+            const string SCRAMBLED_EGG_2 = "5-1";
+            const string SCRAMBLED_EGG_3 = "5-2";
+            const string CRYSTAL_EGG_1 = "6-0";
+            const string CRYSTAL_EGG_2 = "6-1";
+            const string CRYSTAL_EGG_3 = "6-2";
+            const string S2SMS_GOOD_CREDITS = "7-1"; // Good Ending Credits
+            const string S2SMS_END = "99-0"; // Good Ending Credits
+            if ( watchercount == 0 ) {
+                vars.levelselectbytes = new byte[] {0x0D};
+                vars.levelselectoffset = 0x112C;
+                vars.emeraldcountoffset = 0x12BD;
+                vars.emeraldflagsoffset = 0x12C5;
+                vars.startTrigger = 68;
+                vars.isSMSGGSonic2 = true;
+                vars.isSMS = true;
+                vars.isIGT = true;
+                vars.hasRTATB = true;
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "seconds",      0x12B9 },
+                    { "minutes",      0x12BA },
+                    { "lives",        0x1298 },
+                    { "continues",    0x1298 },
+                    { "zone",         0x1295 },
+                    { "act",          0x1296 },
+                    { "trigger",      0x1293 },
+                    { "systemflag",   0x12C8 },
+                    { "levelselect",  vars.levelselectoffset },
+                    { "emeraldcount", vars.emeraldcountoffset },
+                    { "emeraldflags", vars.emeraldflagsoffset }
+                });
+
+                vars.addUShortAddresses(new Dictionary<string, long>() {
+                    { "levelframecount",    0x12BA },
+                    { "timebonus",          0x12A2 }
+                });
+                
+                
+                
+
+                vars.expectednextlevel = new Dictionary<string, string>() {
+                    { UNDER_GROUND_1,       /* -> */ UNDER_GROUND_2 },
+                    { UNDER_GROUND_2,       /* -> */ UNDER_GROUND_3 },
+                    { UNDER_GROUND_3,       /* -> */ SKY_HIGH_1 },
+                    { SKY_HIGH_1,           /* -> */ SKY_HIGH_2 },
+                    { SKY_HIGH_2,           /* -> */ SKY_HIGH_3 },
+                    { SKY_HIGH_3,           /* -> */ AQUA_LAKE_1 },
+                    { AQUA_LAKE_1,          /* -> */ AQUA_LAKE_2 },
+                    { AQUA_LAKE_2,          /* -> */ AQUA_LAKE_3 },
+                    { AQUA_LAKE_3,          /* -> */ GREEN_HILLS_1 },
+                    { GREEN_HILLS_1,        /* -> */ GREEN_HILLS_2 },
+                    { GREEN_HILLS_2,        /* -> */ GREEN_HILLS_3 },
+                    { GREEN_HILLS_3,        /* -> */ GIMMICK_MT_1 },
+                    { GIMMICK_MT_1,         /* -> */ GIMMICK_MT_2 },
+                    { GIMMICK_MT_2,         /* -> */ GIMMICK_MT_3 },
+                    { GIMMICK_MT_3,         /* -> */ SCRAMBLED_EGG_1 },
+                    { SCRAMBLED_EGG_1,      /* -> */ SCRAMBLED_EGG_2 },
+                    { SCRAMBLED_EGG_2,      /* -> */ SCRAMBLED_EGG_3 },
+                    { SCRAMBLED_EGG_3,      /* -> */ CRYSTAL_EGG_1 },
+                    { CRYSTAL_EGG_1,        /* -> */ CRYSTAL_EGG_2 },
+                    { CRYSTAL_EGG_2,        /* -> */ CRYSTAL_EGG_3 },
+                    { CRYSTAL_EGG_3,        /* -> */ S2SMS_GOOD_CREDITS },
+                    { S2SMS_GOOD_CREDITS,   /* -> */ S2SMS_END }
+                };
+                return false;
+            }
+                
+            if ( vars.watchers["trigger"].Changed ) {
+                switch ( (uint) vars.watchers["trigger"].Current ) {
+                    case 0x00:
+                    case 0x40:
+                        vars.watchers["seconds"].Enabled = true;
+                        
+                        break;
+                    case 0x44:
+                        vars.watchers["seconds"].Enabled = false;
+                        vars.watchers["timebonus"].Enabled = false;
+                        break;
+                    case 0x50:
+                    case 0x60:
+                        vars.watchers["seconds"].Enabled = false;
+                        vars.watchers["timebonus"].Enabled = true;
+                        break;
+                }
+                vars.DebugOutput( String.Format( "Trigger now: {0:X} was: {1:X}", vars.watchers["trigger"].Current, vars.watchers["trigger"].Old));
+            }
+
+            if ( vars.watchers["timebonus"].Changed && 
+                ( ( vars.nextsplit == CRYSTAL_EGG_1 && vars.watchers["emeraldflags"].Current < 0x3F ) || vars.nextsplit == S2SMS_GOOD_CREDITS ) 
+            ) {
+                split = true;
+                
+            }
+            
+
+            if ( !vars.ingame && 
+                vars.watchers["trigger"].Current == vars.startTrigger && 
+                vars.watchers["act"].Current == 0 && 
+                vars.watchers["zone"].Current == 0 
+            ) {
+                vars.nextsplit = "0-1"; // 2nd Level
+                vars.igttotal = 0;
+                vars.juststarted = true;
+                start = true;
+                
+                
+            }
+            if (
+                !settings["levelselect"] &&
+                vars.watchers["lives"].Current == 0 && 
+                vars.watchers["continues"].Current == 0
+            ) {
+                reset = true;
+            }
+            
+            currentlevel = String.Format("{0}-{1}", vars.watchers["zone"].Current, vars.watchers["act"].Current);
+            if ( vars.nextsplit == currentlevel ) {
+                vars.nextsplit = vars.expectednextlevel[currentlevel];
+                vars.DebugOutput("Next Split on: " + vars.nextsplit);
+                split = true;
+                
+            }
+            if ( currentlevel == "7-0" && vars.nextsplit == "6-0") {
+                split = true;
+            }
+            
+            if ( 
+                vars.nextsplit == "99-0" && 
+                vars.watchers["trigger"].Current == 0x20 
+            )  {
+                split = true;
+            }
+
+            if ( vars.watchers["seconds"].Changed || vars.watchers["minutes"].Changed ) {
+
+                var oldSeconds = vars.watchers["seconds"].Old;
+                var curSeconds = vars.watchers["seconds"].Current;
+                
+                oldSeconds = ( ( oldSeconds >> 4 ) * 10 ) + ( oldSeconds & 0xF );
+                curSeconds = ( ( curSeconds >> 4 ) * 10 ) + ( curSeconds & 0xF );
+            
+                if (
+                    (
+                        vars.watchers["seconds"].Changed &&
+                        curSeconds == oldSeconds + 1
+                    ) || (
+                        vars.watchers["minutes"].Changed && vars.watchers["minutes"].Current == (vars.watchers["minutes"].Old + 1) &&
+                        vars.watchers["seconds"].Current == 0 
+                    )
+                ) {
+                    vars.igttotal++;
+                }
+            }
+            gametime = TimeSpan.FromSeconds(vars.igttotal);
+            break;
+        
+        case "Sonic the Hedgehog (Genesis / Mega Drive)":
+            const string 
+                GREEN_HILL_1  = "0-0", GREEN_HILL_2  = "0-1", GREEN_HILL_3  = "0-2",
+                MARBLE_1      = "2-0", MARBLE_2      = "2-1", MARBLE_3      = "2-2",
+                SPRING_YARD_1 = "4-0", SPRING_YARD_2 = "4-1", SPRING_YARD_3 = "4-2", 
+                LABYRINTH_1   = "1-0", LABYRINTH_2   = "1-1", LABYRINTH_3   = "1-2", 
+                STAR_LIGHT_1  = "3-0", STAR_LIGHT_2  = "3-1", STAR_LIGHT_3  = "3-2", 
+                SCRAP_BRAIN_1 = "5-0", SCRAP_BRAIN_2 = "5-1", SCRAP_BRAIN_3 = "1-3", // LUL
+                FINAL_ZONE    = "5-2", AFTER_FINAL_ZONE = "99-0"; 
+            if ( watchercount == 0 ) {
+                vars.expectednextlevel = new Dictionary<string, string>() {
+                    { GREEN_HILL_1,     /* -> */ GREEN_HILL_2 },
+                    { GREEN_HILL_2,     /* -> */ GREEN_HILL_3 },
+                    { GREEN_HILL_3,     /* -> */ MARBLE_1 },
+                    { MARBLE_1,         /* -> */ MARBLE_2 },
+                    { MARBLE_2,         /* -> */ MARBLE_3 },
+                    { MARBLE_3,         /* -> */ SPRING_YARD_1 },
+                    { SPRING_YARD_1,    /* -> */ SPRING_YARD_2 },
+                    { SPRING_YARD_2,    /* -> */ SPRING_YARD_3 },
+                    { SPRING_YARD_3,    /* -> */ LABYRINTH_1 },
+                    { LABYRINTH_1,      /* -> */ LABYRINTH_2 },
+                    { LABYRINTH_2,      /* -> */ LABYRINTH_3 },
+                    { LABYRINTH_3,      /* -> */ STAR_LIGHT_1 },
+                    { STAR_LIGHT_1,     /* -> */ STAR_LIGHT_2 },
+                    { STAR_LIGHT_2,     /* -> */ STAR_LIGHT_3 },
+                    { STAR_LIGHT_3,     /* -> */ SCRAP_BRAIN_1 },
+                    { SCRAP_BRAIN_1,    /* -> */ SCRAP_BRAIN_2 },
+                    { SCRAP_BRAIN_2,    /* -> */ SCRAP_BRAIN_3 },
+                    { SCRAP_BRAIN_3,    /* -> */ FINAL_ZONE },
+                    { FINAL_ZONE,       /* -> */ AFTER_FINAL_ZONE }
+                };
+                
+                vars.levelselectoffset = isBigEndian ? 0xFFE0 : 0xFFE1 ;
+                vars.isGenSonic1 = true;
+            }
+            goto case "Sonic the Hedgehog 2 (Genesis / Mega Drive)";
+        case "Sonic the Hedgehog 2 (Genesis / Mega Drive)":
+            if ( !vars.isGenSonic1 && watchercount == 0 ) {
+                vars.levelselectoffset = isBigEndian ? 0xFFD0 : 0xFFD1;
+
+                const string 
+                    EMERALD_HILL_1   =  "0-0", EMERALD_HILL_2   =  "0-1", 
+                    CHEMICAL_PLANT_1 = "13-0", CHEMICAL_PLANT_2 = "13-1", 
+                    AQUATIC_RUIN_1   = "15-0", AQUATIC_RUIN_2   = "15-1", 
+                    CASINO_NIGHT_1   = "12-0", CASINO_NIGHT_2   = "12-1",
+                    HILL_TOP_1       =  "7-0", HILL_TOP_2       =  "7-1", 
+                    MYSTIC_CAVE_1    = "11-0", MYSTIC_CAVE_2    = "11-1", 
+                    OIL_OCEAN_1      = "10-0", OIL_OCEAN_2      = "10-1", 
+                    METROPOLIS_1     =  "4-0", METROPOLIS_2     =  "4-1", METROPOLIS_3 =  "5-0", 
+                    SKY_CHASE        = "16-0", WING_FORTRESS    =  "6-0", S2_DEATH_EGG    = "14-0", 
+                    AFTER_DEATH_EGG = "99-0";
+
+                vars.expectednextlevel = new Dictionary<string, string>() {
+                    { EMERALD_HILL_1,   /* -> */ EMERALD_HILL_2 },
+                    { EMERALD_HILL_2,   /* -> */ CHEMICAL_PLANT_1 },
+                    { CHEMICAL_PLANT_1, /* -> */ CHEMICAL_PLANT_2 },
+                    { CHEMICAL_PLANT_2, /* -> */ AQUATIC_RUIN_1 },
+                    { AQUATIC_RUIN_1,   /* -> */ AQUATIC_RUIN_2 },
+                    { AQUATIC_RUIN_2,   /* -> */ CASINO_NIGHT_1 },
+                    { CASINO_NIGHT_1,   /* -> */ CASINO_NIGHT_2 },
+                    { CASINO_NIGHT_2,   /* -> */ HILL_TOP_1 },
+                    { HILL_TOP_1,       /* -> */ HILL_TOP_2 },
+                    { HILL_TOP_2,       /* -> */ MYSTIC_CAVE_1 },
+                    { MYSTIC_CAVE_1,    /* -> */ MYSTIC_CAVE_2 },
+                    { MYSTIC_CAVE_2,    /* -> */ OIL_OCEAN_1 },
+                    { OIL_OCEAN_1,      /* -> */ OIL_OCEAN_2 },
+                    { OIL_OCEAN_2,      /* -> */ METROPOLIS_1 },
+                    { METROPOLIS_1,     /* -> */ METROPOLIS_2 },
+                    { METROPOLIS_2,     /* -> */ METROPOLIS_3 },
+                    { METROPOLIS_3,     /* -> */ SKY_CHASE },
+                    { SKY_CHASE,        /* -> */ WING_FORTRESS },
+                    { WING_FORTRESS,    /* -> */ S2_DEATH_EGG },
+                    { S2_DEATH_EGG,     /* -> */ AFTER_DEATH_EGG }
+                };
+            }
+            if ( watchercount == 0 ) {
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "seconds", isBigEndian ? 0xFE24 : 0xFE25 },
+                    { "minutes", isBigEndian ? 0xFE23 : 0xFE22 },
+                    { "lives",   isBigEndian ? 0xFE12 : 0xFE13 },
+                    { "continues", isBigEndian ? 0xFE18 : 0xFE19 },
+                    { "zone", isBigEndian ? 0xFE10 : 0xFE11 },
+                    { "act", isBigEndian ? 0xFE11 : 0xFE10 },
+                    { "trigger", isBigEndian ? 0xF600 : 0xF601 },
+                    { "levelselect", vars.levelselectoffset }
+                });
+
+                vars.addUShortAddresses(new Dictionary<string, long>() {
+                    { "timebonus", 0xF7D2 },
+                    { "levelframecount", isBigEndian ? 0xFE05 : 0xFE04 }
+
+                });
+                vars.addULongAddresses(new Dictionary<string, long>() {
+                    { "fadeout", 0xFB00 }
+                });
+
+                
+
+                vars.isGenSonic1or2 = true;
+                vars.isIGT = true;
+                vars.hasRTATB = true;
+                return false;
+            }
+            goto case "GenericNextLevelSplitter";
         case "Sonic CD":
+            var addmsandreset = false;
+            if ( watchercount == 0 ) {
+                const string 
+                    PALMTREE_PANIC_1    = "0-0", PALMTREE_PANIC_2    = "0-1", PALMTREE_PANIC_3    = "0-2",
+                    COLLISION_CHAOS_1   = "1-0", COLLISION_CHAOS_2   = "1-1", COLLISION_CHAOS_3   = "1-2",
+                    TIDAL_TEMPEST_1     = "2-0", TIDAL_TEMPEST_2     = "2-1", TIDAL_TEMPEST_3     = "2-2",
+                    QUARTZ_QUADRANT_1   = "3-0", QUARTZ_QUADRANT_2   = "3-1", QUARTZ_QUADRANT_3   = "3-2", 
+                    WACKY_WORKBENCH_1   = "4-0", WACKY_WORKBENCH_2   = "4-1", WACKY_WORKBENCH_3   = "4-2", 
+                    STARDUST_SPEEDWAY_1 = "5-0", STARDUST_SPEEDWAY_2 = "5-1", STARDUST_SPEEDWAY_3 = "5-2", 
+                    METALLIC_MADNESS_1  = "6-0", METALLIC_MADNESS_2  = "6-1", METALLIC_MADNESS_3  = "6-2", 
+                    AFTER_METALLIC_MADNESS_3 = "99-0";
+                
+                vars.expectednextlevel = new Dictionary<string, string>() {
+                    { PALMTREE_PANIC_1,     /* -> */ PALMTREE_PANIC_2    },
+                    { PALMTREE_PANIC_2,     /* -> */ PALMTREE_PANIC_3    },
+                    { PALMTREE_PANIC_3,     /* -> */ COLLISION_CHAOS_1   },
+                    { COLLISION_CHAOS_1,    /* -> */ COLLISION_CHAOS_2   },
+                    { COLLISION_CHAOS_2,    /* -> */ COLLISION_CHAOS_3   },
+                    { COLLISION_CHAOS_3,    /* -> */ TIDAL_TEMPEST_1     },
+                    { TIDAL_TEMPEST_1,      /* -> */ TIDAL_TEMPEST_2     },
+                    { TIDAL_TEMPEST_2,      /* -> */ TIDAL_TEMPEST_3     },
+                    { TIDAL_TEMPEST_3,      /* -> */ QUARTZ_QUADRANT_1   },
+                    { QUARTZ_QUADRANT_1,    /* -> */ QUARTZ_QUADRANT_2   },
+                    { QUARTZ_QUADRANT_2,    /* -> */ QUARTZ_QUADRANT_3   },
+                    { QUARTZ_QUADRANT_3,    /* -> */ WACKY_WORKBENCH_1   },
+                    { WACKY_WORKBENCH_1,    /* -> */ WACKY_WORKBENCH_2   },
+                    { WACKY_WORKBENCH_2,    /* -> */ WACKY_WORKBENCH_3   },
+                    { WACKY_WORKBENCH_3,    /* -> */ STARDUST_SPEEDWAY_1 },
+                    { STARDUST_SPEEDWAY_1,  /* -> */ STARDUST_SPEEDWAY_2 },
+                    { STARDUST_SPEEDWAY_2,  /* -> */ STARDUST_SPEEDWAY_3 },
+                    { STARDUST_SPEEDWAY_3,  /* -> */ METALLIC_MADNESS_1  },
+                    { METALLIC_MADNESS_1,   /* -> */ METALLIC_MADNESS_2  },
+                    { METALLIC_MADNESS_2,   /* -> */ METALLIC_MADNESS_3  },
+                    { METALLIC_MADNESS_3,   /* -> */ AFTER_METALLIC_MADNESS_3 }
+                };
+
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "seconds",                isBigEndian ? 0x1516 : 0x1517 },
+                    { "minutes",                isBigEndian ? 0x1515 : 0x1514 },
+                    { "lives",                  isBigEndian ? 0x1508 : 0x1509 },
+                    { "continues",              isBigEndian ? 0x1508 : 0x1509 },
+                    { "zone",                   isBigEndian ? 0x1506 : 0x1507 },
+                    { "act",                    isBigEndian ? 0x1507 : 0x1506 },
+                    { "trigger",                isBigEndian ? 0xFA0E : 0xFA0F },
+                    { "timeperiod",             isBigEndian ? 0x152E : 0x152F },
+                    { "framesinsecond",         isBigEndian ? 0x1517 : 0x1516 },
+                    { "timewarpminutes",        isBigEndian ? 0x1571 : 0x1570 },
+                    { "timewarpseconds",        isBigEndian ? 0x1572 : 0x1573 },
+                    { "timewarpframesinsecond", isBigEndian ? 0x1573 : 0x1572 },
+                    { "levelframecount",        isBigEndian ? 0x1505 : 0x1504 }
+
+
+                });
+
+
+                vars.addUShortAddresses(new Dictionary<string, long>() { 
+                    { "timebonus", 0xF7D2 }
+                });
+                vars.addULongAddresses(new Dictionary<string, long>() {
+                    { "fadeout", 0xFB00 }
+                });
+                vars.isIGT = true;
+                vars.hasRTATB = true;
+                
+                vars.startTrigger = 1;
+                vars.ms = 0;
+                vars.wait = false;
+                vars.isSonicCD = true;
+                current.cdloading = false;
+                foreach ( var watcher in vars.watchers ) {
+                    if ( watcher.Name != "trigger" && watcher.Name != "timeperiod" ) {
+                        watcher.Enabled = false;
+                        watcher.Reset();
+                    }
+                }
+                return false;
+            }
+
+            var scdtrigger = vars.watchers["trigger"];
+            var scdtimeperiod = vars.watchers["timeperiod"];
+            var scdlevelframecount = vars.watchers["levelframecount"];
+            var scdminutes = vars.watchers["minutes"];
+            var scdzone = vars.watchers["zone"];
+            var scdact = vars.watchers["act"];
+            var scdlives = vars.watchers["lives"];
+            var scdseconds = vars.watchers["seconds"];
+            var scdframesinsecond = vars.watchers["framesinsecond"];
+            var scdtimewarpseconds = vars.watchers["timewarpseconds"];
+            var scdtimewarpframesinsecond = vars.watchers["timewarpframesinsecond"];
+            var scdtimewarpminutes = vars.watchers["timewarpminutes"];
+            var scdfadeout = vars.watchers["fadeout"];
+            var scdtimebonus = vars.watchers["timebonus"];
+            if ( scdtrigger.Changed || scdtimeperiod.Changed ) {
+                if ( settings["extralogging"] ) {
+                    vars.DebugOutput(String.Format("Trigger was: {0:X} now: {1:X}, Time period was: Trigger was: {2:X} now: {3:X}", scdtrigger.Old, scdtrigger.Current,scdtimeperiod.Old, scdtimeperiod.Current  ) );
+                }
+                if ( !vars.ingame && scdtimeperiod.Current == 1 && scdtrigger.Current == 1 ) {
+                    start = true;
+                    scdlevelframecount.Enabled = true;
+                    scdzone.Enabled = true;
+                    scdact.Enabled = true;
+                    scdlives.Enabled = true;
+                    vars.nextsplit = "0-1";
+                    current.totalseconds = 0;
+                    current.expectedms = 0;
+                    current.cdloading = false;
+                }
+                if ( scdtimeperiod.Current >= 0x80 && scdtimeperiod.Old < 0x80 ) {
+                    scdminutes.Enabled = false;
+                    scdseconds.Enabled = false;
+                    scdframesinsecond.Enabled = false;
+                    scdseconds.Current = scdtimewarpseconds.Current;
+                    scdframesinsecond.Current = scdtimewarpframesinsecond.Current;
+                }
+                if ( scdtimeperiod.Current < 0x80 && scdtimeperiod.Old >= 0x80 ) {
+                    scdminutes.Enabled = true;
+                    scdseconds.Enabled = true;
+                    scdframesinsecond.Enabled = true;
+                }
+            }
+            if ( vars.ingame ) {
+                if ( scdlevelframecount.Changed && scdlevelframecount.Current <= 1 ) {
+                    current.cdloading = false;
+                    scdseconds.Enabled = true;
+                    scdminutes.Enabled = true;
+                    scdframesinsecond.Enabled = true;
+                    scdtimebonus.Enabled = true;
+                }
+
+                if ( scdseconds.Changed && scdseconds.Current > 0 ) {
+                    scdlevelframecount.Enabled = false;
+                    scdtimewarpminutes.Enabled = true;
+                    scdtimewarpseconds.Enabled = true;
+                    scdtimewarpframesinsecond.Enabled = true;
+                }
+
+                if ( vars.nextsplit == "99-0" ) {
+                    scdfadeout.Enabled = true;
+                    if (
+                                (scdfadeout.Current == 0xEE0EEE0EEE0EEE0E && scdfadeout.Old == 0xEE0EEE0EEE0EEE0E) ||
+                                (scdfadeout.Current == WHITEOUT && scdfadeout.Old == WHITEOUT)
+                    )  {
+                        split = true;
+                    }
+                }
+
+                if ( scdframesinsecond.Enabled ) {
+                    current.totalseconds = ( scdminutes.Current * 60) + scdseconds.Current;
+
+                    vars.igttotal += Math.Max(current.totalseconds - old.totalseconds,0) * 1000;
+                    current.expectedms = Math.Floor(scdframesinsecond.Current * (100.0/6.0));
+
+                    vars.ms = Math.Max(current.expectedms, 0);
+
+                    if ( scdlives.Current == scdlives.Old -1 ) {
+                        addmsandreset = true;
+                    }
+                }
+                currentlevel = String.Format("{0}-{1}", scdzone.Current, scdact.Current);
+                if ( vars.nextsplit == currentlevel ) {
+                    vars.nextsplit = vars.expectednextlevel[currentlevel];
+                    vars.DebugOutput("Next Split on: " + vars.nextsplit);
+
+
+                    
+                    addmsandreset = true;
+                    split = true;
+
+                }
+
+            }
+            if ( addmsandreset ) {
+                scdseconds.Enabled = false;
+                scdlevelframecount.Enabled = true;
+                scdframesinsecond.Enabled = false;
+                scdframesinsecond.Current = 0;
+                vars.igttotal += old.expectedms;
+                vars.ms = 0;
+                current.expectedms = 0;
+                addmsandreset = false;
+            }
+            gametime = TimeSpan.FromMilliseconds(vars.igttotal + vars.ms);
+            break;
+        case "GenericNextLevelSplitter":
+
+            if ( vars.isIGT && vars.watchers["levelframecount"].Changed && vars.watchers["levelframecount"].Current <= 1 ) {
+                vars.watchers["seconds"].Enabled = true;
+                vars.watchers["timebonus"].Enabled = true;
+            }
+            if ( vars.isIGT && vars.watchers["seconds"].Changed && vars.watchers["seconds"].Current == 1 ) {
+                vars.watchers["levelframecount"].Enabled = false;
+            }
+            
             if ( !vars.ingame && 
                 ( 
-                    ( !vars.isSonicChaos && vars.watchers["trigger"].Current == vars.startTrigger && ( !vars.isSonicCD || vars.watchers["timeperiod"].Current == 1   ) ) ||
+                    ( !vars.isSonicChaos && vars.watchers["trigger"].Current == vars.startTrigger ) ||
                     ( vars.isSonicChaos && ( vars.watchers["lives"].Old == 0 && vars.watchers["lives"].Current >= 3 ) )
                  ) && 
                 vars.watchers["act"].Current == 0 && 
                 vars.watchers["zone"].Current == 0 
             ) {
                 vars.nextsplit = "0-1"; // 2nd Level
+                if ( vars.isIGT ) { 
+                    vars.watchers["seconds"].Enabled = false;
+                    vars.watchers["levelframecount"].Enabled = true;
+                }
+                
                 start = true;
                 vars.igttotal = 0;
+                current.totalseconds = 0;
                 
             }
-            if ( settings["s2smsallemeralds"] && vars.isSMSGGSonic2 ) {
-                // enable all emeralds
-                if ( vars.watchers["emeraldcount"].Current < vars.watchers["zone"].Current ) {
-                    vars.DebugOutput("Updating Emerald Count");
-                    game.WriteBytes( (IntPtr) vars.emeraldcountoffset, new byte[] { vars.watchers["zone"].Current } );
-                }
-                if ( vars.watchers["zone"].Current == 5 && vars.watchers["emeraldflags"].Current < 0x1F ) {
-                    vars.DebugOutput("Updating Emerald Flags");
-                    game.WriteBytes( (IntPtr) vars.emeraldflagsoffset, new byte[] { 0x1F } );
-                }
-                if ( vars.watchers["zone"].Current == 6 && vars.watchers["emeraldflags"].Current < 0x3F ) {
-                    vars.DebugOutput("Updating Emerald Flags");
-                    game.WriteBytes( (IntPtr) vars.emeraldflagsoffset, new byte[] { 0x3F } );
-                }
-            }
             if ( 
-                !settings["levelselect"] && !vars.isSonicCD &&
+                !settings["levelselect"] && 
                 (
                     (  vars.watchers["lives"].Current == 0 && vars.watchers["continues"].Current == 0 ) ||
-                    ( !vars.isSMSGGSonic2 && vars.watchers["trigger"].Current == 0x04 && vars.watchers["trigger"].Old == 0x0 ) 
+                    ( vars.watchers["trigger"].Current == 0x04 && vars.watchers["trigger"].Old == 0x0 ) 
                 )
             ) {
                 reset = true;
             }
-            var currentlevel = String.Format("{0}-{1}", vars.watchers["zone"].Current, vars.watchers["act"].Current);
+            currentlevel = String.Format("{0}-{1}", vars.watchers["zone"].Current, vars.watchers["act"].Current);
             if ( vars.nextsplit == currentlevel ) {
                 vars.nextsplit = vars.expectednextlevel[currentlevel];
                 vars.DebugOutput("Next Split on: " + vars.nextsplit);
-                split = true;
-                if ( vars.isSonicCD ) {
-                    vars.igttotal += old.expectedms;
-                    vars.ms = 0;
-                    current.loading = true;
+                if ( vars.isIGT ) {
+                    vars.watchers["seconds"].Enabled = false;
+                    vars.watchers["levelframecount"].Enabled = true;
                 }
-                
-            }
-            if ( vars.isSMSGGSonic2 && currentlevel == "7-0" && vars.nextsplit == "6-0") {
                 split = true;
             }
             if ( vars.isSonicChaos && currentlevel == "5-2" && vars.watchers["endBoss"].Current == 255 && vars.splitInXFrames == -1) {
@@ -1192,10 +1337,6 @@ update
             if ( 
                 vars.nextsplit == "99-0" && (
                     ( vars.isGenSonic1 && vars.watchers["trigger"].Current == 0x18 ) ||
-                    ( vars.isSonicCD && 
-                        (vars.watchers["fadeout"].Current == 0xEE0EEE0EEE0EEE0E && vars.watchers["fadeout"].Old == 0xEE0EEE0EEE0EEE0E) ||
-                        (vars.watchers["fadeout"].Current == WHITEOUT && vars.watchers["fadeout"].Old == WHITEOUT)
-                    ) ||
                     ( !vars.isGenSonic1 && vars.watchers["trigger"].Current == 0x20 )
                     
                 )
@@ -1206,124 +1347,129 @@ update
             if ( !vars.isIGT ) {
                 break;
             }
-
-            if ( vars.isSonicCD ) {
-                if ( 
-                    current.loading &&
-                    vars.watchers["minutes"].Current == vars.watchers["timewarpminutes"].Current &&
-                    vars.watchers["seconds"].Current == vars.watchers["timewarpseconds"].Current &&
-                    vars.watchers["framesinsecond"].Current == vars.watchers["timewarpframesinsecond"].Current
-                
-                ) {
-
-                    current.loading = false;
+            if ( vars.ingame ) {
+                var oldSeconds = vars.watchers["seconds"].Old;
+                var curSeconds = vars.watchers["seconds"].Current;
+                if ( !vars.isGenSonic1or2 ) {
+                    oldSeconds = ( ( oldSeconds >> 4 ) * 10 ) + ( oldSeconds & 0xF );
+                    curSeconds = ( ( curSeconds >> 4 ) * 10 ) + ( curSeconds & 0xF );
                 }
-
                 if (
-                ( vars.watchers["timewarpminutes"].Current > 0 && vars.watchers["timewarpminutes"].Current != vars.watchers["timewarpminutes"].Old ) ||
-                ( vars.watchers["timewarpseconds"].Current > 0 && vars.watchers["timewarpseconds"].Current != vars.watchers["timewarpseconds"].Old ) ||
-                ( vars.watchers["timewarpframesinsecond"].Current > 0 && vars.watchers["timewarpframesinsecond"].Current != vars.watchers["timewarpframesinsecond"].Old ) 
+                    (
+                        vars.watchers["minutes"].Current == vars.watchers["minutes"].Old &&
+                        curSeconds == oldSeconds + 1
+                    ) || (
+                        vars.watchers["minutes"].Current == (vars.watchers["minutes"].Old + 1) &&
+                        vars.watchers["seconds"].Current == 0 
+                    )
                 ) {
-                    vars.waitforminutes = vars.watchers["timewarpminutes"].Current;
-                    vars.waitforseconds = vars.watchers["timewarpseconds"].Current;
-                    vars.waitforframes = vars.watchers["timewarpframesinsecond"].Current;
-                    vars.wait = true;
+                    vars.igttotal++;
                 }
-            }
-            if ( vars.ingame && !current.loading ) {
-                if ( vars.isSonicCD ) {
-                    
-                    current.totalseconds = ( vars.watchers["minutes"].Current * 60) + vars.watchers["seconds"].Current;
-
-                    vars.igttotal += Math.Max(current.totalseconds - old.totalseconds,0) * 1000;
-                    current.expectedms = Math.Floor(vars.watchers["framesinsecond"].Current * (100.0/6.0));
-
-                    vars.ms = current.expectedms;
-
-                    if ( vars.wait && vars.waitforframes == vars.watchers["framesinsecond"].Current && vars.waitforseconds ==  vars.watchers["seconds"].Current && vars.waitforminutes == vars.watchers["minutes"].Current ) {
-                        vars.wait = false;
-                        current.loading = true;
-                    }
-                    if ( vars.watchers["lives"].Current == vars.watchers["lives"].Old -1 ) {
-                        vars.igttotal += vars.ms;
-                        vars.ms = 0;
-                        current.loading = true;
-                    }
-                } else {
-                    var oldSeconds = vars.watchers["seconds"].Old;
-                    var curSeconds = vars.watchers["seconds"].Current;
-                    if ( !vars.isGenSonic1or2 ) {
-                        oldSeconds = ( ( oldSeconds >> 4 ) * 10 ) + ( oldSeconds & 0xF );
-                        curSeconds = ( ( curSeconds >> 4 ) * 10 ) + ( curSeconds & 0xF );
-                    }
-                    if (
-                        (
-                            vars.watchers["minutes"].Current == vars.watchers["minutes"].Old &&
-                            curSeconds == oldSeconds + 1
-                        ) || (
-                            vars.watchers["minutes"].Current == (vars.watchers["minutes"].Old + 1) &&
-                            vars.watchers["seconds"].Current == 0 
-                        )
-                    ) {
-                        vars.igttotal++;
-                    }
-                }
-            } else if ( current.loading && vars.watchers["levelframecount"].Current == 0 && 
-                (
-                    ( vars.isSonicCD && vars.watchers["levelframecount"].Old > 0 ) ||
-                    ( vars.watchers["seconds"].Current == 0 && vars.watchers["minutes"].Current == 0 )
-                ) ) {
-                 current.loading = false; //unpause timer once game time has reset
-            }
-            else if ( 
-                vars.isSMSGGSonic2 && 
-                vars.watchers["seconds"].Current == 1 && 
-                vars.watchers["minutes"].Current == 0 &&
-                vars.nextsplit != "0-1" ) {
-                // handle Sonic 2 SMS shitty stuff
-                current.loading = false;
-                vars.igttotal++;
-            }
-            if ( start || split ) {
-                // pause to wait until the stage actually starts, to fix S1 issues like SB3->FZ
-                current.loading = !vars.isSonicChaos;
-            }
-            if ( vars.isSonicCD ) {
-                gametime = TimeSpan.FromMilliseconds(vars.igttotal + vars.ms);
-            } else {
-                gametime = TimeSpan.FromSeconds(vars.igttotal);
-            }
+            } 
             
+            gametime = TimeSpan.FromSeconds(vars.igttotal);
+
             break;
         /**********************************************************************************
             ANCHOR START Sonic the Hedgehog 3 & Knuckles split code
         **********************************************************************************/
-            case "Sonic 3 & Knuckles":
-                const byte ACT_1 = 0;
-                const byte ACT_2 = 1;
 
-                const byte SONIC_AND_TAILS = 0;
-                const byte SONIC = 1;
-                const byte TAILS = 2;
-                const byte KNUCKLES = 3;
+            case "SetupS3K":
+                const byte ACT_1 = 0, ACT_2 = 1,
+                    SONIC_AND_TAILS = 0, SONIC = 1, TAILS = 2, KNUCKLES = 3;
 
                 /* S3K levels */
-                const byte ANGEL_ISLAND      = 0;
-                const byte HYDROCITY         = 1;
-                const byte MARBLE_GARDEN     = 2;
-                const byte CARNIVAL_NIGHT    = 3;
-                const byte ICE_CAP           = 5;
-                const byte LAUNCH_BASE       = 6;
-                const byte MUSHROOM_HILL     = 7;
-                const byte FLYING_BATTERY    = 4;
-                const byte SANDOPOLIS        = 8;
-                const byte LAVA_REEF         = 9;
-                const byte SKY_SANCTUARY     = 10;
-                const byte DEATH_EGG         = 11;
-                const byte DOOMSDAY          = 12;
-                const byte LRB_HIDDEN_PALACE = 22;
-                const byte DEATH_EGG_BOSS    = 23;
-                const byte S3K_CREDITS       = 13;
+                const byte 
+                    ANGEL_ISLAND      = 0, SANDOPOLIS        = 8,
+                    HYDROCITY         = 1, LAVA_REEF         = 9,
+                    MARBLE_GARDEN     = 2, SKY_SANCTUARY     = 10,
+                    CARNIVAL_NIGHT    = 3, DEATH_EGG         = 11,
+                    ICE_CAP           = 5, DOOMSDAY          = 12,
+                    LAUNCH_BASE       = 6, LRB_HIDDEN_PALACE = 22,
+                    MUSHROOM_HILL     = 7, DEATH_EGG_BOSS    = 23,
+                    FLYING_BATTERY    = 4, S3K_CREDITS       = 13;
+                
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "zone", isBigEndian ? 0xEE4E : 0xEE4F },
+                    { "act",  isBigEndian ? 0xEE4F : 0xEE4E },
+                    { "reset", 0xFFFC },
+                    { "trigger", isBigEndian ? 0xF600 : 0xF601 },
+                    
+                    { "chara", isBigEndian ? 0xFF09 : 0xFF08 },
+                    { "ddzboss", isBigEndian ? 0xB1E5 : 0xB1E4 },
+                    { "sszboss", isBigEndian ? 0xB279 : 0xB278 },
+                    { "delactive", isBigEndian ? 0xEEE4 : 0xEEE5 },
+                    { "savefile", isBigEndian ? 0xEF4B : 0xEF4A },
+                    { "savefilezone", isBigEndian ? 0xFDEB : 0xFDEA },
+                    { "s3savefilezone", isBigEndian ? 0xB15F : 0xB15E },
+                    { "levelselect", vars.levelselectoffset },
+                    { "chaosemeralds", 0xFFB0 },
+                    { "superemeralds", 0xFFB1 }
+                    /* $FFA6-$FFA9  Level number in Blue Sphere  */ 
+                    /* $FFB0 	Number of chaos emeralds  */ 
+                    /* $FFB1 	Number of super emeralds  */ 
+                    /* $FFB2-$FFB8 	Array of finished special stages. Each byte represents one stage: 
+            
+                        0 - special stage not completed 
+                        1 - chaos emerald collected 
+                        2 - super emerald present but grayed 
+                        3 - super emerald present and activated  
+                    */ 
+
+                });
+                vars.addUShortAddresses(new Dictionary<string, long>() {
+                    { "timebonus", 0xF7D2 }
+                    
+                });
+
+                vars.addULongAddresses(new Dictionary<string, long>() {
+                    { "primarybg", 0xFC00 }
+                });
+
+                foreach ( var watcher in vars.watchers ) {
+                    if ( watcher.Name != "trigger" ) {
+                        watcher.Enabled = false;
+                        watcher.Reset();
+                    }
+                }
+                current.primarybg  = 0;
+                vars.expectedzone = 0;
+                vars.expectedact = 1;
+                vars.sszsplit = false; //boss is defeated twice
+                vars.savefile = 255;
+                vars.skipsAct1Split = false;
+                vars.specialstagetimer = new Stopwatch(); 
+                vars.addspecialstagetime = false; 
+                vars.specialstagetimeadded = false; 
+                vars.gotEmerald = false;
+                vars.chaoscatchall = false;
+                vars.chaossplits = 0;
+                vars.hasRTATB = true;
+                vars.expectedzonemap = new byte[] { 
+                /*  0 ANGEL_ISLAND      -> */ HYDROCITY, 
+                /*  1 HYDROCITY         -> */ MARBLE_GARDEN, 
+                /*  2 MARBLE_GARDEN     -> */ CARNIVAL_NIGHT, 
+                /*  3 CARNIVAL_NIGHT    -> */ ICE_CAP, 
+                /*  4 FLYING_BATTERY    -> */ SANDOPOLIS, 
+                /*  5 ICE_CAP           -> */ LAUNCH_BASE, 
+                /*  6 LAUNCH_BASE       -> */ MUSHROOM_HILL, 
+                /*  7 MUSHROOM_HILL     -> */ FLYING_BATTERY, 
+                /*  8 SANDOPOLIS        -> */ LAVA_REEF, 
+                /*  9 LAVA_REEF         -> */ LRB_HIDDEN_PALACE, 
+                /* 10 SKY_SANCTUARY     -> */ DEATH_EGG, 
+                /* 11 DEATH_EGG         -> */ DOOMSDAY,
+                /* 12 DOOMSDAY          -> */ S3K_CREDITS,
+                /* 13 S3K_CREDITS       -> */ 0,
+                /* 14,15,16,17,18,19,20,21 */ 0,0,0,0,0,0,0,0,
+                /* 22 LRB_HIDDEN_PALACE -> */ SKY_SANCTUARY,
+                /* 23 DEATH_EGG_BOSS    -> */ DOOMSDAY
+                };
+                return false;
+            case "Sonic 3 & Knuckles":
+                if ( watchercount == 0 ) {
+                    goto case "SetupS3K";
+                }
+
 
                 var trigger = vars.watchers["trigger"];
                 var resettrigger = vars.watchers["reset"];
@@ -1340,31 +1486,10 @@ update
                 var savefile = vars.watchers["savefile"];
                 var savefilezone = ( vars.isS3 ? vars.watchers["s3savefilezone"] : vars.watchers["savefilezone"] );
 
-                if (!vars.expectedzonemap.GetType().IsArray) {
-                    vars.expectedzonemap = new byte[] { 
-                    /*  0 ANGEL_ISLAND      -> */ HYDROCITY, 
-                    /*  1 HYDROCITY         -> */ MARBLE_GARDEN, 
-                    /*  2 MARBLE_GARDEN     -> */ CARNIVAL_NIGHT, 
-                    /*  3 CARNIVAL_NIGHT    -> */ ICE_CAP, 
-                    /*  4 FLYING_BATTERY    -> */ SANDOPOLIS, 
-                    /*  5 ICE_CAP           -> */ LAUNCH_BASE, 
-                    /*  6 LAUNCH_BASE       -> */ MUSHROOM_HILL, 
-                    /*  7 MUSHROOM_HILL     -> */ FLYING_BATTERY, 
-                    /*  8 SANDOPOLIS        -> */ LAVA_REEF, 
-                    /*  9 LAVA_REEF         -> */ LRB_HIDDEN_PALACE, 
-                    /* 10 SKY_SANCTUARY     -> */ DEATH_EGG, 
-                    /* 11 DEATH_EGG         -> */ DOOMSDAY,
-                    /* 12 DOOMSDAY          -> */ S3K_CREDITS,
-                    /* 13 S3K_CREDITS       -> */ 0,
-                    /* 14,15,16,17,18,19,20,21 */ 0,0,0,0,0,0,0,0,
-                    /* 22 LRB_HIDDEN_PALACE -> */ SKY_SANCTUARY,
-                    /* 23 DEATH_EGG_BOSS    -> */ DOOMSDAY
-                    };
-                }
 
                 if ( trigger.Changed ) {
                     if ( settings["extralogging"] ) {
-                        vars.DebugOutput(String.Format("Trigger was: {0} now: {1}", trigger.Old, trigger.Current ) );
+                        vars.DebugOutput(String.Format("Trigger was: {0:X} now: {1:X}", trigger.Old, trigger.Current ) );
                     }
                     switch ( (int) trigger.Current ) {
                         case 0x00: // Game init - Disable all watchers except trigger.
@@ -1405,12 +1530,23 @@ update
                                 )
                             ) {
                                     vars.expectedzone = zone.Current;
+                                    vars.expectedact = 1;
+                                    vars.sszsplit = false;
+                                    vars.skipsAct1Split = !settings["actsplit"];
+                                    vars.specialstagetimer = new Stopwatch(); 
+                                    vars.addspecialstagetime = false;
+                                    vars.specialstagetimeadded = false;
+                                    vars.specialstagetimer.Reset();
+                                    vars.gotEmerald = false;
+                                    vars.chaoscatchall = false;
+                                    vars.chaossplits = 0;
                                     start = true;
                             }
                             break;
                         case 0x0C: // in level
-
+                            //vars.DebugOutput(String.Format("Enabling TB {0}", vars.hasRTATB ));
                             vars.watchers["timebonus"].Enabled = true;
+                            vars.watchers["timebonus"].Update(game);
                             break;
                         case 0x34: // Go to special stage
                             current.loading = true;
@@ -1431,7 +1567,6 @@ update
                         }
                     }
                 }
-
 
                 // Reset triggers
                 if ( 
@@ -1457,10 +1592,10 @@ update
                                 // Savefile zone = AI
                                 savefilezone.Current == ANGEL_ISLAND &&
                                 // Fading/Faded in
-                                current.primarybg == 0xEE0ECC0AAA08 
+                                current.primarybg == 0x08AA0ACC0EEE0000
                             )
-                        )
-                        
+                        ) 
+   
                     )
                 ) {
                     reset = true;
@@ -1537,7 +1672,7 @@ update
 
                     }
                 }
-                vars.DebugOutput(String.Format("{0} {1} {2}", vars.isS3, zone.Current, act.Current ));
+
                 if ( vars.sszsplit ||
                     ( vars.isS3 && zone.Current == LAUNCH_BASE && act.Current == ACT_2 )
                 ) {
@@ -1570,8 +1705,9 @@ update
 
             break;
         case "Sonic 3 & Knuckles - Bonus Stages Only":
-        case "Sonic & Knuckles - Bonus Stages Only":
-
+            if ( watchercount == 0 ) {
+                goto case "SetupS3K";
+            }
             trigger = vars.watchers["trigger"];
             resettrigger = vars.watchers["reset"];
             delactive = vars.watchers["delactive"];
@@ -1636,6 +1772,8 @@ update
                         ) {
                                 vars.stopwatch.Start();
                                 vars.expectedzone = zone.Current;
+                                current.loading = true;
+                                vars.juststarted = true;
                                 start = true;
                         }
                         break;
@@ -1681,7 +1819,7 @@ update
                             // Before Hydro 1 (0-0 AI1, 0-1 AI2, 1-0 HC1)
                             (vars.expectedact + vars.expectedzone) <= 1 &&
                             // Fading/Faded in
-                            current.primarybg == 0xEE0ECC0AAA08 &&
+                            current.primarybg == 0x08AA0ACC0EEE0000 &&
                             // Save file is the same
                             savefile.Current == vars.savefile &&
                             // Savefile zone = AI
@@ -1702,6 +1840,30 @@ update
             ANCHOR START Sonic the Hedgehog (Master System) support
         **********************************************************************************/
         case "Sonic the Hedgehog (Master System)":
+            if ( watchercount == 0 ) {
+                vars.isSMS = true;
+                //vars.ringsoffset = (IntPtr)smsMemoryOffset +  0x12AA;
+                //vars.leveloffset = (IntPtr)smsMemoryOffset +  0x123E;
+
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level", 0x123E },
+                    { "state", 0x1000 },
+                    { "input", 0x1203 },
+                    { "endBoss", 0x12D5 },
+                    { "scorescreen", 0x122C },
+                    { "menucheck1", 0x1C08 },
+                    { "menucheck2", 0x1C0A }
+                });
+                vars.addUIntAddresses(new Dictionary<string, long>() {
+                    { "timebonus", 0x1212 }
+                });
+
+                vars.watchers["timebonus"].Enabled = false;
+                
+                vars.hasRTATB = true;
+                vars.isSMSS1 = true;
+                return false;
+            }
             if ( vars.watchers["scorescreen"].Changed ) {
                 if ( vars.watchers["scorescreen"].Current == 27 ) {
                     vars.watchers["timebonus"].Enabled = true;
@@ -1779,28 +1941,28 @@ startup
     }
 
 
-    Func<ushort,ushort> SwapEndianness = (ushort value) => {
+    vars.SwapEndianness = (Func<ushort,ushort>)((value) => {
         var b1 = (value >> 0) & 0xff;
         var b2 = (value >> 8) & 0xff;
 
         return (ushort) (b1 << 8 | b2 << 0);
-    };
+    });
 
-    Func<uint, uint> SwapEndiannessInt = (uint value) => {
+    vars.SwapEndiannessInt = (Func<uint, uint>)((value) => {
         return ((value & 0x000000ff) << 24) +
             ((value & 0x0000ff00) << 8) +
             ((value & 0x00ff0000) >> 8) +
             ((value & 0xff000000) >> 24);
-    };
+    });
 
-    Func<uint, uint> SwapEndiannessIntAndTruncate = (uint value) => {
+    vars.SwapEndiannessIntAndTruncate = (Func<uint, uint>)((value) => {
         return ((value & 0x00000000) << 24) +
             ((value & 0x0000ff00) << 8) +
             ((value & 0x00ff0000) >> 8) +
             ((value & 0xff000000) >> 24);
-    };
+    });
 
-    Func<ulong, ulong> SwapEndiannessLong = (ulong value) => {
+    vars.SwapEndiannessLong = (Func<ulong, ulong>)((value) => {
         return 
             ((value & 0x00000000000000FF) << 56) +
             ((value & 0x000000000000FF00) << 40) +
@@ -1811,7 +1973,7 @@ startup
             ((value & 0x00FF000000000000) >> 40) +
             ((value & 0xFF00000000000000) >> 56) 
             ;
-    };
+    });
 
     vars.LookUp = (Func<Process, SigScanTarget, IntPtr>)((proc, target) =>
     {
@@ -1838,178 +2000,6 @@ startup
         return result;
     });
 
-
-    vars.BizHawksetup = (Func<Process, Process, long>)((thegame, mem) => {
-            long memoryOffset = 0;
-            long scanOffset = 0;
-            long injectionMem = (long) thegame.AllocateMemory( 0x70 );
-            SigScanTarget target;
-            if ( thegame.Is64Bit() ) {
-                vars.DebugOutput("64bit Bizhawk");
-                /***************************
-                * 64 bit Bizhawk
-                ********************/
-                target = new SigScanTarget(0, "53 48 83 EC 20 48 8B F1 41 8B F8 0F B7 DA 81 FB 00 C0 00 00 7C 25 48 8B 46 28 8B D3 81 E2 FF 1F 00 00 3B 50 08 0F 83 ?? ?? ?? ??");
-                scanOffset = (long) vars.LookUp(thegame, target);
-                if ( scanOffset != 0 ) {
-                    vars.DebugOutput("Memory Found");
-                } else {
-                    Thread.Sleep(500);
-                    throw new NullReferenceException (String.Format("BizHawk Memory not found. {0}", scanOffset ));
-                    
-                }
-                
-                
-                var originalCode = new List<byte>() {
-                    0x48, 0x8B, 0x46, 0x28,                     // mov rax,[rsi+28]
-                    0x8B, 0xD3,                                 // mov edx,ebx
-                    0x81, 0xE2, 0xFF, 0x1F, 0x00, 0x00,         // and edx,00001FFF
-                    0x3B, 0x50, 0x08,                           // cmp edx,[rax+08]
-                    0x0F, 0x83, /* 0x64, 0x01, 0x00, 0x00,         // jae SMS::WriteMemorySega+191 
-                    0x48, 0x63, 0xD2                            // movsxd rdx, edx */
-                };
-                originalCode.InsertRange( 17, BitConverter.GetBytes( (long) scanOffset + 0x27  ) );
-                var injectionCode = new List<byte>() {
-                    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-                    0x58,                                       // pop rax
-                    0x48, 0x8B, 0x46, 0x28,                     // mov rax,[rsi+28]
-                    0x48, 0xA3, /* injectionMem ref (17) */     // mov [injectionMem],rax
-                    0x50,                                       // push rax
-                    0x8B, 0xD3,                                 // mov edx,ebx
-                    0x81, 0xE2, 0xFF, 0x1F, 0x00, 0x00,         // and edx,00001FFF
-                    0x3B, 0x50, 0x08,                           // cmp edx,[rax+08]
-                    0x72, 0x0C,                                 // jb
-                    0x48, 0xB8,  /* scanOffset + 0x18F (33) */  // mov rax, [scanOffset + 0x18F]
-                    0xFF, 0xE0,                                 // jmp rax
-                    0x48, 0xB8,  /* scanOffset + 0x2A (37) */   // mov rax, [scanOffset + 0x2A]
-                    0xFF, 0xE0,                                 // jmp rax
-                };
-
-
-                injectionCode.InsertRange( 37, BitConverter.GetBytes( (long) scanOffset + 0x2A  ) );
-                injectionCode.InsertRange( 33, BitConverter.GetBytes( (long) scanOffset + 0x18F ) );
-                injectionCode.InsertRange( 17, BitConverter.GetBytes( (long) injectionMem       ) );
-
-                thegame.Suspend();
-                vars.DebugOutput("start praying...");
-
-
-                var replacementjump = new List<byte>() {
-                    0x50,                                       // push rax
-                    0x48, 0xB8,  /* injectionMem + 0x0A (3) */  // mov rax, [injectionMem + 0x0A]
-                    0xFF, 0xE0,                                 // jmp rax
-                    0x90, 0x90, 0x90, 0x90,                     // nop x 8
-                    0x90, 0x90, 0x90, 0x90,  
-                    0x58,                                       // pop rax
-                };
-                replacementjump.InsertRange( 3, BitConverter.GetBytes( (long) injectionMem + 0x0A ) );
-                vars.DebugOutput( String.Format( "To write (code injected at {0:X}): " + BitConverter.ToString( injectionCode.ToArray() ), (long) injectionMem ) );
-                vars.DebugOutput( String.Format( "To write (replacement jump at {0:X}): " + BitConverter.ToString( replacementjump.ToArray() ), (long) scanOffset + 0x16 ) );
-                
-                mem.WriteBytes( new IntPtr(injectionMem), injectionCode.ToArray() );
-                vars.DebugOutput(String.Format("Memory for injection written at: {0:X}", (long) injectionMem));
-                mem.WriteBytes( new IntPtr(scanOffset + 0x16), replacementjump.ToArray() );
-                
-                
-                thegame.Resume();
-                
-                var count = 0;
-                vars.DebugOutput("Waiting for core to write to memory");
-                long oldMemoryOffset = memoryOffset + 0x20;
-                while ( oldMemoryOffset != memoryOffset ) {
-                    if ( count > 1 ) {
-                        oldMemoryOffset = memoryOffset;
-                    }
-                    Thread.Sleep(500);
-                    memoryOffset = mem.ReadValue<long>(new IntPtr( injectionMem ) ) + 0x10;
-                    count++;
-                    if ( count > 50 ) {
-                        throw new NullReferenceException (String.Format("Genesis/SMS Memory not found. {0}", memoryOffset ));
-                    }
-                }
-                vars.DebugOutput("Writing back old code");
-                thegame.Suspend();
-                thegame.WriteBytes( new IntPtr( scanOffset + 0x16 ), originalCode.ToArray() );
-
-                thegame.Resume();
-            } else {
-                /***************************
-                * 32 bit Bizhawk
-                ********************/
-                vars.DebugOutput("32bit Bizhawk");
-                target = new SigScanTarget(0, "55 8B EC 57 56 53 50 8B F1 8B 5D 08 0F B7 FA 81 FF 00 C0 00 00 7C 1C 8B C7 25 FF 1F 00 00 8B 56 28 3B 42 04 0F 83 38 01 00 00");
-                scanOffset = (long) vars.LookUp( thegame, target );
-                if ( scanOffset == 0) {
-                    Thread.Sleep(500);
-                    throw new NullReferenceException (String.Format("BizHawk Memory not found. {0}", (long) scanOffset ));
-                    
-                }
-                var originalCode = new List<byte>() {
-                    0x8B, 0xC7,                                 // mov eax,edi
-                    0x25, 0xFF, 0x1F, 0x0, 0x0,                 // and eax,00001FFF
-                    0x8B, 0x56, 0x28,                           // mov edx, [esi+28]
-                };
-                var injectionCode = new List<byte>() {
-                    0x89, 0x15,                                 // mov [injectionMem + 0x15], edx
-                    0xE9,  /* see right */                      // jmp ( scanOffset + 0x21 ) - ( injectionMem + 0x15 )
-                    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-                };
-
-                injectionCode.InsertRange( 0, originalCode );
-                injectionCode.InsertRange( 13, BitConverter.GetBytes( ( (int) scanOffset + 0x21 ) - ( (int) injectionMem + 0x15 ) ) );
-                injectionCode.InsertRange( 12, BitConverter.GetBytes( (int) injectionMem + 0x15 ) );
-
-                thegame.Suspend();
-                vars.DebugOutput("start praying...");
-
-                var replacementjump = new List<byte>() {
-                    0xE9, /* see right */               // jmp [injectionMem  - ( scanOffset + 0x1C )]
-                    0x90, 0x90, 0x90, 0x90, 0x90,       // nop x 5
-                };
-
-
-                replacementjump.InsertRange( 1, BitConverter.GetBytes( ( (int) injectionMem ) - ( (int) scanOffset + 0x1C ) ) );
-
-                thegame.WriteBytes( new IntPtr( injectionMem ), injectionCode.ToArray());
-                thegame.WriteBytes( new IntPtr( scanOffset + 0x17 ), replacementjump.ToArray() );
-                
-                vars.DebugOutput(String.Format("Memory for injection written at: {0:X}", (int) injectionMem));
-                vars.DebugOutput(String.Format("WriteSegaMemory Found at: {0:X}",  scanOffset ));
-                thegame.Resume();
-                
-                var count = 0;
-                vars.DebugOutput("Waiting for core to write to memory");
-                long oldMemoryOffset = memoryOffset + 0x20;
-                while ( oldMemoryOffset != memoryOffset ) {
-                    if ( count > 1 ) {
-                        oldMemoryOffset = memoryOffset;
-                    }
-                    Thread.Sleep(500);
-                    memoryOffset = mem.ReadValue<long>( new IntPtr( injectionMem + 0x15 ) ) + 0x08;
-                    count++;
-                    if ( count > 50 ) {
-                        throw new NullReferenceException (String.Format("Genesis/SMS Memory not found. {0}", memoryOffset ));
-                    }
-                }
-
-
-                vars.DebugOutput("Writing back old code");
-                thegame.Suspend();
-                thegame.WriteBytes( new IntPtr( scanOffset + 0x17 ), originalCode.ToArray() );
-
-                thegame.Resume();
-
-            }
-            return memoryOffset;
-
-    });
-
-
-
-    vars.SwapEndianness = SwapEndianness;
-    vars.SwapEndiannessInt = SwapEndiannessInt;
-    vars.SwapEndiannessIntAndTruncate = SwapEndiannessIntAndTruncate;
-    vars.SwapEndiannessLong = SwapEndiannessLong;
 
     refreshRate = 61;
 
@@ -2051,30 +2041,11 @@ startup
 
     settings.Add("rtatbinrta", false, "Store RTA-TB in Real-Time (only applies to non-IGT games)");
 
-    Action<string> DebugOutput = (text) => {
+    vars.DebugOutput = (Action<string>)((text) => {
         string time = System.DateTime.Now.ToString("dd/MM/yy hh:mm:ss:fff");
         File.AppendAllText(logfile, "[" + time + "]: " + text + "\r\n");
-    
         print("[SEGA Master Splitter] "+text);
-
-        
-    };
-
-    Action<ExpandoObject> DebugOutputExpando = (ExpandoObject dynamicObject) => {
-            var dynamicDictionary = dynamicObject as IDictionary<string, object>;
-         
-            foreach(KeyValuePair<string, object> property in dynamicDictionary)
-            {
-                DebugOutput(String.Format("{0}: {1}", property.Key, property.Value.ToString()));
-            }
-            DebugOutput("");
-    };
-
-
-
-    vars.DebugOutput = DebugOutput;
-    vars.DebugOutputExpando = DebugOutputExpando;
-    
+    });
 
 }
 
@@ -2091,7 +2062,6 @@ reset
 {
     if ( current.reset ) {
         current.reset = false;
-        vars.ingame = false;
         return true;
     }
 }
@@ -2107,10 +2077,8 @@ split
 
 isLoading
 {
-    if ( vars.isIGT ) {
-        return true;
-    }
-    if ( vars.hasRTATB || vars.isSonicCD ) {
+    var tmp = 0;
+    if ( vars.hasRTATB ) {
         var timebonus = vars.watchers["timebonus"];
 
         if ( vars.triggerTB ) {
@@ -2119,12 +2087,15 @@ isLoading
         if ( timebonus.Changed || vars.triggerTB ) {
             
             uint ctb = timebonus.Current;
-            
-
+            tmp = timebonus.Current;
+            if ( vars.isSMSGGSonic2 ) {
+                ctb  = (uint) ( Int32.Parse(String.Format("{0:X8}", tmp) ) * (10/3.57) );
+                vars.DebugOutput(String.Format("TB {0:X8}, {1} {1:X8}", tmp,ctb));
+                vars.triggerTB = false;
+            }
             if ( vars.isSMSS1 ) {
-                var tmp = timebonus.Current;
                 tmp = vars.SwapEndiannessInt( timebonus.Current );
-                if ( vars.isBigEndian ) {
+                if ( vars.isBigEndian  ) {
                     tmp = vars.SwapEndiannessIntAndTruncate( timebonus.Current );
                 }
                 ctb  = (uint) ( Int32.Parse(String.Format("{0:X8}", tmp)) / 10 );
@@ -2133,7 +2104,10 @@ isLoading
             } else if ( vars.isBigEndian ) {
                 ctb  = vars.SwapEndianness(timebonus.Current);
             }
-
+            if ( vars.isSonicCD ) {
+                ctb = ctb / 10;
+            }
+            vars.DebugOutput(String.Format("TB {0:X8}, {1} {1:X8}", tmp,ctb));
             current.timebonus = ctb;
             if ( current.timebonus > old.timebonus ) {
                 // 5000 = 50000K TB
@@ -2171,10 +2145,10 @@ isLoading
         }
     }
 
-    if ( settings["rtatbinrta"] && current.loading != old.loading ) {
+    if ( ( settings["rtatbinrta"] || ( vars.isIGT && vars.hasRTATB ) ) && current.loading != old.loading ) {
         vars.timerModel.Pause(); // Pause/UnPause
     } 
-    return current.loading;
+    return vars.isIGT || current.loading;
 }
 
 gameTime
@@ -2184,7 +2158,7 @@ gameTime
         return TimeSpan.FromMilliseconds(0);
     }
 
-    if ( vars.isS3K && vars.addspecialstagetime && !current.split ) { 
+    if ( vars.addspecialstagetime && !current.split ) { 
         vars.addspecialstagetime = false; 
         var currentElapsedTime = vars.specialstagetimer.ElapsedMilliseconds; 
         vars.specialstagetimer.Reset(); 

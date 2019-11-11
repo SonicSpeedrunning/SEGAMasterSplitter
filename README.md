@@ -3,7 +3,7 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 
 ## Supported Emulators
 
-* Retroarch (32bit and 64bit)
+* Retroarch (32bit and 64bit), using Genesis Plus GX
 * Fusion 3.64
 * SEGA Game Room
 * SEGA Simple Launcher
@@ -30,8 +30,9 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 * Sonic Chaos
 
 ## Timing Methods
-IGT is stored in Game Time for Sonic 1, 2, CD, 3D Blast and 2 (8-bit).  
-RTA-TB is stored in Game Time for Sonic 1 (SMS), and Sonic 3 & Knuckles.  
+IGT is stored in Game Time, and RTA-TB is stored in "Real Time" for Sonic 1, 2, CD, and 2 (8-bit).  
+IGT is stored in Game Time for 3D Blast.
+RTA-TB is stored in Game Time for Sonic 1 (SMS), and Sonic 3 & Knuckles, with the option of storing it in Real Time.
 RTA is also stored in Game Time for all other games.
 
 ## Splits
@@ -39,7 +40,7 @@ Most splits are done at the beginning of the next level (i.e. after bonus screen
 where splits are done at the final hit on each boss, and at the start of a new level.
 
 Final split is done according to the SRC rules for the relevant game at the time of coding.
-Sonic 2 (8 bit) starts the timer just before the Underground 1 splash screen appears, and final split is after the final countdown (in either SE3 or CE3).
+Sonic 2 (8 bit) starts the timer just before the Underground 1 splash screen appears, and final split is on fade out (in either SE3 or CE3).
 
 ## Debugging options
 ### Level Select Activation
