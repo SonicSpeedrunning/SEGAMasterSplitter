@@ -8,7 +8,7 @@ state("Fusion") {}
 state("gens") {}
 state("SEGAGameRoom") {}
 state("SEGAGenesisClassics") {}
-
+state("blastem") {}
 init
 {
     vars.gamename = timer.Run.GameName;
@@ -16,28 +16,46 @@ init
 
     long memoryOffset = 0;
     long smsMemoryOffset = 0;
-    IntPtr baseAddress;
+    IntPtr baseAddress, codeOffset;
 
     long smsOffset = 0;
     long refLocation = 0;
     baseAddress = modules.First().BaseAddress;
     bool isBigEndian = false;
     bool isFusion = false;
-    
+    SigScanTarget target;
+
     switch ( game.ProcessName.ToLower() ) {
         case "retroarch":
-            ProcessModuleWow64Safe gpgx = modules.Where(m => m.ModuleName == "genesis_plus_gx_libretro.dll").First();
-            baseAddress = gpgx.BaseAddress;
-            if ( game.Is64Bit() ) {
-                SigScanTarget target = new SigScanTarget(0, "85 C9 74 11 83 F9 02 B8 00 00 00 00 48 0F 44 05 ?? ?? ?? ?? C3 48 8B 05 ?? ?? ?? ?? 80 78 01 00 74 0E 48 8B 40 10 C3");
-                IntPtr codeOffset = vars.LookUpInDLL( game, gpgx, target );
-                long memoryReference = memory.ReadValue<int>( codeOffset + 0x10 );
-                refLocation = ( (long) codeOffset + 0x14 + memoryReference );
-            } else {
-                SigScanTarget target = new SigScanTarget(0, "8B 44 24 04 85 C0 74 18 83 F8 02 BA 00 00 00 00 B8 ?? ?? ?? ?? 0F 45 C2 C3 8D B4 26 00 00 00 00");
-                IntPtr codeOffset = vars.LookUpInDLL( game, gpgx, target );
-                refLocation = (long) codeOffset + 0x11;
+
+
+            ProcessModuleWow64Safe libretromodule = modules.Where(m => m.ModuleName == "genesis_plus_gx_libretro.dll" || m.ModuleName == "blastem_libretro.dll").First();
+            baseAddress = libretromodule.BaseAddress;
+
+            if ( libretromodule.ModuleName == "genesis_plus_gx_libretro.dll" ) {
+            
+                vars.DebugOutput("Retroarch - GPGX");
+                if ( game.Is64Bit() ) {
+                    target = new SigScanTarget(0, "85 C9 74 11 83 F9 02 B8 00 00 00 00 48 0F 44 05 ?? ?? ?? ?? C3 48 8B 05 ?? ?? ?? ?? 80 78 01 00 74 0E 48 8B 40 10 C3");
+                    codeOffset = vars.LookUpInDLL( game, libretromodule, target );
+                    long memoryReference = memory.ReadValue<int>( codeOffset + 0x10 );
+                    refLocation = ( (long) codeOffset + 0x14 + memoryReference );
+                } else {
+                    target = new SigScanTarget(0, "8B 44 24 04 85 C0 74 18 83 F8 02 BA 00 00 00 00 B8 ?? ?? ?? ?? 0F 45 C2 C3 8D B4 26 00 00 00 00");
+                        codeOffset = vars.LookUpInDLL( game, libretromodule, target );
+                    refLocation = (long) codeOffset + 0x11;
+                }
+            } else if ( libretromodule.ModuleName == "blastem_libretro.dll" ) {
+                vars.DebugOutput("Retroarch - BlastEm!");
+                goto case "blastem";
             }
+            
+            break;
+
+        case "blastem":
+            target = new SigScanTarget(0, "81 F9 00 00 E0 00 72 10 81 E1 FF FF 00 00 83 F1 01 8A 89 ?? ?? ?? ?? C3");
+            codeOffset = vars.LookUp( game, target );
+            refLocation = (long) codeOffset + 0x13;
             break;
         case "gens":
             refLocation = memory.ReadValue<int>( IntPtr.Add(baseAddress, 0x40F5C ) );
