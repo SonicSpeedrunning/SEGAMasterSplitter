@@ -3,7 +3,8 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 
 ## Supported Emulators
 
-* Retroarch (32bit and 64bit), using Genesis Plus GX
+* Retroarch (32bit and 64bit), using Genesis Plus GX or BlastEm! Core
+* BlastEm!
 * Fusion 3.64
 * SEGA Game Room
 * SEGA Simple Launcher
