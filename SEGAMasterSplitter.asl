@@ -56,13 +56,21 @@ init
             target = new SigScanTarget(0, "81 F9 00 00 E0 00 72 10 81 E1 FF FF 00 00 83 F1 01 8A 89 ?? ?? ?? ?? C3");
             codeOffset = vars.LookUp( game, target );
             refLocation = (long) codeOffset + 0x13;
+
+            target = new SigScanTarget(0, "66 41 81 FD FC FF 73 12 66 41 81 E5 FF 1F 45 0F B7 ED 45 8A AD ?? ?? ?? ?? C3");
+            codeOffset = vars.LookUp( game, target );
+            smsOffset = (long) codeOffset + 0x15;
+
+            if ( refLocation == 0x13 && smsOffset == 0x15 ) {
+                throw new NullReferenceException (String.Format("Memory offset not yet found. Base Address: 0x{0:X}", (long) baseAddress ));
+            }
             break;
         case "gens":
             refLocation = memory.ReadValue<int>( IntPtr.Add(baseAddress, 0x40F5C ) );
             break;
         case "fusion":
             refLocation = (long) IntPtr.Add(baseAddress, 0x2A52D4);
-            smsOffset = 0x2A52D8;
+            smsOffset = (long) IntPtr.Add(baseAddress, 0x2A52D8 );
             isBigEndian = true;
             isFusion = true;
             break;
@@ -82,15 +90,17 @@ init
             memoryOffset = refLocation;
         }
     }
-
+    if ( smsOffset == 0 ) {
+        smsOffset = refLocation;
+    }
     vars.emuoffsets = new MemoryWatcherList
     {
         new MemoryWatcher<uint>( (IntPtr) refLocation ) { Name = "genesis", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull },
-        new MemoryWatcher<uint>( (IntPtr) IntPtr.Add(baseAddress, (int)smsOffset)     ) { Name = "sms" },
+        new MemoryWatcher<uint>( (IntPtr) smsOffset   ) { Name = "sms", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull },
         new MemoryWatcher<uint>( (IntPtr) baseAddress ) { Name = "baseaddress", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull }
     };
 
-    if ( memoryOffset == 0 && ( !isFusion || smsMemoryOffset == 0xC000 ) ) {
+    if ( memoryOffset == 0 && smsOffset == 0 ) {
         Thread.Sleep(500);
         throw new NullReferenceException (String.Format("Memory offset not yet found. Base Address: 0x{0:X}", (long) baseAddress ));
     }
@@ -175,12 +185,13 @@ init
         if ( memoryOffset == 0 && refLocation > 0 ) {
             memoryOffset = refLocation;
         }
-        smsMemoryOffset = memoryOffset;
+        smsMemoryOffset = vars.emuoffsets["sms"].Current;
 
 
         if ( isFusion ) {
-            smsMemoryOffset = memory.ReadValue<int>(IntPtr.Add(baseAddress, (int)smsOffset) ) + (int) 0xC000;
+            smsMemoryOffset = vars.emuoffsets["sms"].Current + (int) 0xC000;
         }
+
         vars.DebugOutput(String.Format("memory should start at {0:X}", memoryOffset));
         vars.DebugOutput(String.Format("SMS memory should start at {0:X}", smsMemoryOffset));
 
@@ -389,7 +400,7 @@ update
         }
         if ( changed == 0 && !runJustStarted ) {
             vars.emuoffsets.UpdateAll(game);
-            if ( vars.livesplitGameName != timer.Run.GameName || vars.emuoffsets["genesis"].Old != vars.emuoffsets["genesis"].Current || vars.emuoffsets["baseaddress"].Current != vars.emuoffsets["baseaddress"].Old ) {
+            if ( vars.livesplitGameName != timer.Run.GameName || vars.emuoffsets["genesis"].Old != vars.emuoffsets["genesis"].Current || vars.emuoffsets["baseaddress"].Current != vars.emuoffsets["baseaddress"].Old || vars.emuoffsets["sms"].Current != vars.emuoffsets["sms"].Old ) {
                 vars.DebugOutput("Game in Livesplit changed or memory address changed, reinitialising...");
                 vars.gamename = timer.Run.GameName;
                 vars.reInitialise();
