@@ -1578,8 +1578,8 @@ update
                             vars.watchers["timebonus"].Update(game);
                             break;
                         case 0x34: // Go to special stage
-                            current.loading = true;
                             if ( settings["pause_bs"] ) {
+                                current.loading = true;
                                 vars.specialstagetimer.Start();
                             }
                             vars.DebugOutput(String.Format("Detected Entering Special Stage"));
