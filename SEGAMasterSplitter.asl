@@ -14,35 +14,29 @@ init
     vars.gamename = timer.Run.GameName;
     vars.livesplitGameName = vars.gamename;
 
-    long memoryOffset = 0;
-    long smsMemoryOffset = 0;
+    
+    long memoryOffset = 0, smsMemoryOffset = 0;
     IntPtr baseAddress, codeOffset;
 
-    long smsOffset = 0;
-    long refLocation = 0;
+    long refLocation = 0, smsOffset = 0;
     baseAddress = modules.First().BaseAddress;
-    bool isBigEndian = false;
-    bool isFusion = false;
+    bool isBigEndian = false, isFusion = false;
     SigScanTarget target;
 
     switch ( game.ProcessName.ToLower() ) {
         case "retroarch":
-
-
             ProcessModuleWow64Safe libretromodule = modules.Where(m => m.ModuleName == "genesis_plus_gx_libretro.dll" || m.ModuleName == "blastem_libretro.dll").First();
             baseAddress = libretromodule.BaseAddress;
-
             if ( libretromodule.ModuleName == "genesis_plus_gx_libretro.dll" ) {
-            
                 vars.DebugOutput("Retroarch - GPGX");
                 if ( game.Is64Bit() ) {
-                    target = new SigScanTarget(0, "85 C9 74 11 83 F9 02 B8 00 00 00 00 48 0F 44 05 ?? ?? ?? ?? C3 48 8B 05 ?? ?? ?? ?? 80 78 01 00 74 0E 48 8B 40 10 C3");
+                    target = new SigScanTarget(0x10, "85 C9 74 ?? 83 F9 02 B8 00 00 00 00 48 0F 44 05 ?? ?? ?? ?? C3");
                     codeOffset = vars.LookUpInDLL( game, libretromodule, target );
-                    long memoryReference = memory.ReadValue<int>( codeOffset + 0x10 );
-                    refLocation = ( (long) codeOffset + 0x14 + memoryReference );
+                    long memoryReference = memory.ReadValue<int>( codeOffset );
+                    refLocation = ( (long) codeOffset + 0x04 + memoryReference );
                 } else {
                     target = new SigScanTarget(0, "8B 44 24 04 85 C0 74 18 83 F8 02 BA 00 00 00 00 B8 ?? ?? ?? ?? 0F 45 C2 C3 8D B4 26 00 00 00 00");
-                        codeOffset = vars.LookUpInDLL( game, libretromodule, target );
+                    codeOffset = vars.LookUpInDLL( game, libretromodule, target );
                     refLocation = (long) codeOffset + 0x11;
                 }
             } else if ( libretromodule.ModuleName == "blastem_libretro.dll" ) {
@@ -235,6 +229,7 @@ init
             case "Magical Taruruuto-kun":
             case "Mystic Defender":
             case "Sonic CD":
+            case "Sonic Triple Trouble":
                 break;
             // Chaos aliases
             case "Sonic Chaos":
@@ -387,8 +382,7 @@ update
         current.start = false;
         current.split = false;
         current.reset = false;
-    }
-    if ( watchercount > 0 ) {
+    } else {
         if ( settings["levelselect"] && hasLevelSelect ) {
             lschanged = vars.activateLevelSelect();
         }
@@ -807,10 +801,9 @@ update
                         // Master System
                         break;
                     default:
-
-                    vars.DebugOutput(String.Format("Can't Determine platform for Sonic Chaos {0}", vars.watchers["platform"].Current ));
-                    vars.watchers =  new MemoryWatcherList {};
-                    return false;
+                        vars.DebugOutput(String.Format("Can't Determine platform for Sonic Chaos {0}", vars.watchers["platform"].Current ));
+                        vars.watchers =  new MemoryWatcherList {};
+                        return false;
                 }
                 vars.levelselectoffset = 0x12CE + extraGGOffset;
                 vars.addByteAddresses(new Dictionary<string, long>() {
@@ -848,6 +841,54 @@ update
                 
             }
 
+            goto case "GenericNextLevelSplitter";
+
+        case "Sonic Triple Trouble":
+            const string 
+                GREAT_TURQUOISE_1 = "0-0", GREAT_TURQUOISE_2 = "0-1", GREAT_TURQUOISE_3 = "0-2", 
+                SUNSET_PARK_1 = "1-0",     SUNSET_PARK_2 = "1-1",     SUNSET_PARK_3 = "1-2",
+                META_JUNGLIRA_1 = "2-0",   META_JUNGLIRA_2 = "2-1",   META_JUNGLIRA_3 = "2-2",
+                ROBOTNIK_WINTER_1 = "3-0", ROBOTNIK_WINTER_2 = "3-1", ROBOTNIK_WINTER_3 = "3-2",
+                TIDAL_PLANT_1 = "4-0",     TIDAL_PLANT_2 = "4-1",     TIDAL_PLANT_3 = "4-2",ATOMIC_DESTROYER_1 = "5-0", ATOMIC_DESTROYER_2 = "5-1",
+                ATOMIC_DESTROYER_3 = "5-2",   AFTER_ATOMIC_DESTROYER_3 = "99-0";
+            if ( watchercount == 0 ) {
+                vars.isSMS = true;
+
+                vars.levelselectoffset = 0x1C98;
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level",      0x12C9 },
+                    { "zone",       0x1145 },
+                    { "act",        0x1147 },
+                    { "lives",      0x1140 },
+                    { "continues",  0x114B },
+                    { "endBoss",    0x14F0 },
+                    { "trigger",    0x1FEB },
+                    { "levelselect", vars.levelselectoffset }
+                });
+
+
+                vars.expectednextlevel = new Dictionary<string, string>() {
+                    { GREAT_TURQUOISE_1,    /* -> */ GREAT_TURQUOISE_2 },
+                    { GREAT_TURQUOISE_2,    /* -> */ GREAT_TURQUOISE_3 },
+                    { GREAT_TURQUOISE_3,    /* -> */ SUNSET_PARK_1 },
+                    { SUNSET_PARK_1,        /* -> */ SUNSET_PARK_2 },
+                    { SUNSET_PARK_2,        /* -> */ SUNSET_PARK_3 },
+                    { SUNSET_PARK_3,        /* -> */ META_JUNGLIRA_1 },
+                    { META_JUNGLIRA_1,      /* -> */ META_JUNGLIRA_2 },
+                    { META_JUNGLIRA_2,      /* -> */ META_JUNGLIRA_3 },
+                    { META_JUNGLIRA_3,      /* -> */ ROBOTNIK_WINTER_1 },
+                    { ROBOTNIK_WINTER_1,    /* -> */ ROBOTNIK_WINTER_2 },
+                    { ROBOTNIK_WINTER_2,    /* -> */ ROBOTNIK_WINTER_3 },
+                    { ROBOTNIK_WINTER_3,    /* -> */ TIDAL_PLANT_1 },
+                    { TIDAL_PLANT_1,        /* -> */ TIDAL_PLANT_2 },
+                    { TIDAL_PLANT_2,        /* -> */ TIDAL_PLANT_3 },
+                    { TIDAL_PLANT_3,        /* -> */ ATOMIC_DESTROYER_1 },
+                    { ATOMIC_DESTROYER_1,   /* -> */ ATOMIC_DESTROYER_2 },
+                    { ATOMIC_DESTROYER_2,   /* -> */ ATOMIC_DESTROYER_3 },
+                    { ATOMIC_DESTROYER_3,   /* -> */ AFTER_ATOMIC_DESTROYER_3 }
+                };
+                vars.startTrigger = 0x21;
+            }
             goto case "GenericNextLevelSplitter";
         /**********************************************************************************
             ANCHOR START Sonic the Hedgehog 1 & 2 Genesis & 2 8 bit support
@@ -1360,8 +1401,9 @@ update
                 }
                 split = true;
             }
-            if ( vars.isSonicChaos && currentlevel == "5-2" && vars.watchers["endBoss"].Current == 255 && vars.splitInXFrames == -1) {
-                vars.splitInXFrames = 3;
+            if ( vars.isSonicChaos && currentlevel == "5-2" && vars.watchers["endBoss"].Current == 255) {
+                Thread.Sleep( 3 * (1/60) );
+                split = true;
             }
             if ( 
                 vars.nextsplit == "99-0" && (
@@ -1905,6 +1947,7 @@ update
                     vars.watchers["input"].Enabled = false;
                 }
                 if ( vars.watchers["menucheck1"].Current == 5 && vars.watchers["menucheck1"].Old <= 1 && vars.watchers["menucheck2"].Current == 4 && vars.watchers["menucheck2"].Old <= 1 ) {
+                    vars.watchers["input"].Enabled = true;
                     reset = true;
                 }
                 if (
@@ -2075,9 +2118,7 @@ startup
         File.AppendAllText(logfile, "[" + time + "]: " + text + "\r\n");
         print("[SEGA Master Splitter] "+text);
     });
-
 }
-
 
 start
 {
@@ -2106,7 +2147,7 @@ split
 
 isLoading
 {
-    var tmp = 0;
+    uint tmp = 0;
     if ( vars.hasRTATB ) {
         var timebonus = vars.watchers["timebonus"];
 
