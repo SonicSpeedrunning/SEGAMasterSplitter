@@ -216,6 +216,7 @@ init
         vars.isSMSS1 = false;
         vars.isSMSGGSonic2 = false;
         vars.hasRTATB = false;
+        vars.isAir = isAir;
         vars.isSonicChaos = false;
         vars.isSonicCD = false;
         vars.nextsplit = "";
@@ -1529,7 +1530,8 @@ update
                 vars.gotEmerald = false;
                 vars.chaoscatchall = false;
                 vars.chaossplits = 0;
-                vars.hasRTATB = true;
+                vars.hasRTATB = !vars.isAir;
+                
                 vars.expectedzonemap = new byte[] { 
                 /*  0 ANGEL_ISLAND      -> */ HYDROCITY, 
                 /*  1 HYDROCITY         -> */ MARBLE_GARDEN, 
@@ -1597,8 +1599,14 @@ update
                             savefile.Enabled = true;
                             savefilezone.Enabled = !vars.isSK;
                             delactive.Enabled = true;
+                            zone.Enabled = true;
+                            act.Enabled = true;
                             break;
                         case 0x8C: // start game
+                        case 0x0C: // in level
+                            if ( trigger.Old == 0x8C || trigger.Old == 0xC) {
+                                break;
+                            }
                             vars.savefile = savefile.Current;
                             vars.DebugOutput(String.Format("Start game {0} {1} {2:X}", zone.Current, act.Current, trigger.Old) );
 
@@ -1606,10 +1614,12 @@ update
                             savefilezone.Enabled = false;
                             savefile.Enabled = false;
                             delactive.Enabled = false;
-                            zone.Enabled = true;
-                            act.Enabled = true;
-                            zone.Update(game);
-                            act.Update(game);
+                            if ( !zone.Enabled ) {
+                                zone.Enabled = true;
+                                act.Enabled = true;
+                                zone.Update(game);
+                                act.Update(game);
+                            }
                             if ( !vars.ingame && act.Current == 0 && 
                                 ( 
                                     ( zone.Current == 0 && trigger.Old == 0x4C ) ||
@@ -1629,12 +1639,13 @@ update
                                     vars.chaossplits = 0;
                                     start = true;
                             }
-                            break;
-                        case 0x0C: // in level
-                            //vars.DebugOutput(String.Format("Enabling TB {0}", vars.hasRTATB ));
                             vars.watchers["timebonus"].Enabled = true;
                             vars.watchers["timebonus"].Update(game);
                             break;
+                        /*case 0x0C: // in level
+                            //vars.DebugOutput(String.Format("Enabling TB {0}", vars.hasRTATB ));
+
+                            break;*/
                         case 0x34: // Go to special stage
                             if ( settings["pause_bs"] ) {
                                 current.loading = true;
@@ -1689,7 +1700,7 @@ update
                 }
 
                 if ( zone.Changed || act.Changed ) {
-                    if ( !vars.watchers["timebonus"].Enabled ) {
+                    if ( !vars.watchers["timebonus"].Enabled && !vars.isAir ) {
                         vars.watchers["timebonus"].Enabled = true;
                     }
                     vars.DebugOutput(String.Format("Level change now: {0} {1} was: {2} {3} next split on: zone: {4} act: {5}", zone.Current, act.Current, zone.Old, act.Old, vars.expectedzone, vars.expectedact));
