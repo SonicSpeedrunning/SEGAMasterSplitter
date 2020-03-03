@@ -1582,7 +1582,7 @@ update
                         case 0x00: // Game init - Disable all watchers except trigger.
                             foreach ( var watcher in vars.watchers ) {
                                 if ( watcher.Name != "trigger" ) {
-                                    watcher.Enabled = false;
+                                    watcher.Enabled = vars.isAir;
                                     watcher.Reset();
                                 }
                             }
@@ -1639,7 +1639,7 @@ update
                                     vars.chaossplits = 0;
                                     start = true;
                             }
-                            vars.watchers["timebonus"].Enabled = true;
+                            vars.watchers["timebonus"].Enabled = !vars.isAir;
                             vars.watchers["timebonus"].Update(game);
                             break;
                         /*case 0x0C: // in level
