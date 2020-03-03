@@ -236,6 +236,7 @@ init
         switch ( (string) vars.gamename ) {
             // games migrated to memory addresses being within their blocks
             case "Alex Kidd in Miracle World":
+            case "Cool Spot (Genesis)":
             case "Sonic 3D Blast":
             case "Sonic the Hedgehog (Master System)":
             case "Sonic Eraser":
@@ -458,7 +459,40 @@ update
                 }
             }
             break;
+        /**********************************************************************************
+            ANCHOR START Cool Spot Support
+        **********************************************************************************/
+        case "Cool Spot (Genesis)":
+            if ( watchercount == 0 ) {
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level_id", isBigEndian ? 0x0710 :  0x0711 },
+                    { "cage_open", isBigEndian ? 0xF578 : 0xF579  },
+                    { "mystery_byte", isBigEndian ? 0x083D : 0x083E }
+                });
 
+                vars.addUShortAddresses(new Dictionary<string, long>() {
+                    { "score", 0xF4D8}
+                });
+                return false;
+            }
+            if ( !vars.ingame ) {
+                // TODO: Test this to see if it works consistently
+                if ( vars.watchers["level_id"].Current == 3 && vars.watchers["mystery_byte"].Current != 0 && vars.watchers["mystery_byte"].Old == 0 ) {
+                    start = true;
+                }
+            } else {
+                bool splitOnCageHit = settings["coolspot_split_on_cage_hit"];
+
+                if ( ( splitOnCageHit && vars.watchers["cage_open"].Current == 255 && vars.watchers["cage_open"].Old != 255 )
+                        || ( !splitOnCageHit && vars.watchers["level_id"].Current != vars.watchers["level_id"].Old ) ) {
+                    split = true;
+                }
+
+                if ( vars.watchers["score"].Current == 0 && vars.watchers["score"].Old != 0 ) {
+                    reset = true;
+                }
+            }
+            break;
         /**********************************************************************************
             ANCHOR START Magical Taruruuto-kun Support
         **********************************************************************************/
@@ -2131,6 +2165,12 @@ startup
     settings.Add("mtk", true, "Settings for Magical Taruruuto-kun");
     settings.Add("mtk_before", false, "Split before boss levels", "mtk");
     settings.Add("mtk_after", true, "Split after boss levels", "mtk");
+
+    /* Cool Spot settings */
+
+    settings.Add("coolspot", true, "Settings for Cool Spot");
+    settings.Add("coolspot_split_on_cage_hit", true, "Split when cage lock is hit", "coolspot");
+    settings.SetToolTip("coolspot_split_on_cage_hit", "If unchecked, split when the next level starts instead.");
 
     /* Debug Settings */
     settings.Add("debug", false, "Debugging Options");
