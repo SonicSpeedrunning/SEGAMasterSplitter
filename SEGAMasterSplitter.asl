@@ -467,17 +467,14 @@ update
                 vars.addByteAddresses(new Dictionary<string, long>() {
                     { "level_id", isBigEndian ? 0x0710 :  0x0711 },
                     { "cage_open", isBigEndian ? 0xF578 : 0xF579  },
-                    { "mystery_byte", isBigEndian ? 0x083D : 0x083E }
+                    { "game_started", isBigEndian ? 0x083D : 0x083E },
+                    { "reset_indicator", isBigEndian ? 0xF4D5 : 0xF4D6 }
                 });
 
-                vars.addUShortAddresses(new Dictionary<string, long>() {
-                    { "score", 0xF4D8}
-                });
                 return false;
             }
             if ( !vars.ingame ) {
-                // TODO: Test this to see if it works consistently
-                if ( vars.watchers["level_id"].Current == 3 && vars.watchers["mystery_byte"].Current != 0 && vars.watchers["mystery_byte"].Old == 0 ) {
+                if ( vars.watchers["level_id"].Current == 3 && vars.watchers["game_started"].Current != 0 && vars.watchers["game_started"].Old == 0 ) {
                     start = true;
                 }
             } else {
@@ -488,7 +485,7 @@ update
                     split = true;
                 }
 
-                if ( vars.watchers["score"].Current == 0 && vars.watchers["score"].Old != 0 ) {
+                if ( vars.watchers["reset_indicator"].Current == 0 && vars.watchers["reset_indicator"].Old != 0 ) {
                     reset = true;
                 }
             }
