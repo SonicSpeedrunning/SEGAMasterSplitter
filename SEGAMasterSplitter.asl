@@ -77,12 +77,21 @@ init
             refLocation = (long) IntPtr.Add(baseAddress, 0x71704);
             break;
         case "sonic3air":
-            IntPtr ptr;
-            new DeepPointer(0x00408A6C,0x4).DerefOffsets(game, out ptr);
-            //target = new SigScanTarget(0x3FFF00, "53 45 47 41 20 47 45 4E 45 53 49 53 20 20 20 20 28 43 29 53 45 47 41 20 31 39 39 34 2E 4A 55 4E 53 4F 4E 49 43 20 26 20 4B 4E 55 43 4B 4C 45 53");
-            vars.DebugOutput(String.Format("ptr: 0x{0:X}", ptr));
-            refLocation = (long) ptr;
             isAir = true;
+
+            foreach (var page in game.MemoryPages()) {
+                if ((int)page.RegionSize == 0x521000) {
+                    refLocation = (long) page.BaseAddress + 0x3FFF00 + 0x120;
+                    break;
+                }
+            }
+            if ( refLocation > 0 ) {
+                long injectionMem = (long) game.AllocateMemory(0x08);
+                game.Suspend();
+                game.WriteBytes(new IntPtr(injectionMem), BitConverter.GetBytes( (long) refLocation ) );
+                game.Resume();
+                refLocation = injectionMem;
+            }
             isBigEndian = true;
             break;
     }
@@ -194,9 +203,6 @@ init
 
         if ( isFusion ) {
             smsMemoryOffset = vars.emuoffsets["sms"].Current + (int) 0xC000;
-        }
-        if ( isAir ) {
-            memoryOffset = vars.emuoffsets["genesis"].Current + (int)  0x400000;
         }
 
         vars.DebugOutput(String.Format("memory should start at {0:X}", memoryOffset));
