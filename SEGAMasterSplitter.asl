@@ -243,14 +243,19 @@ init
             // games migrated to memory addresses being within their blocks
             case "Alex Kidd in Miracle World":
             case "Cool Spot (Genesis)":
+            case "Dr. Robotnik's Mean Bean Machine":
             case "Sonic 3D Blast":
-            case "Sonic the Hedgehog (Master System)":
             case "Sonic Eraser":
             case "Tiny Toon Adventures: Buster's Hidden Treasure":
             case "Magical Taruruuto-kun":
             case "Mystic Defender":
             case "Sonic CD":
             case "Sonic Triple Trouble":
+                break;
+            // S1SMS aliases
+            case "Sonic the Hedgehog (Master System)":
+            case "Sonic the Hedgehog (SMS)":
+                vars.gamename = "Sonic the Hedgehog (Master System)";
                 break;
             // Chaos aliases
             case "Sonic Chaos":
@@ -492,6 +497,34 @@ update
                 }
 
                 if ( vars.watchers["reset_indicator"].Current == 0 && vars.watchers["reset_indicator"].Old != 0 ) {
+                    reset = true;
+                }
+            }
+            break;
+        /**********************************************************************************
+            ANCHOR START Dr. Robotnik's Mean Bean Machine Support
+        **********************************************************************************/
+        case "Dr. Robotnik's Mean Bean Machine":
+            if ( watchercount == 0 ) {
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "gamestate", isBigEndian ? 0x0113 :  0x0113 },
+                    { "gameover", isBigEndian ? 0x0A3A  : 0x0A3B },
+                    { "defeated", isBigEndian ? 0x19AA : 0x19AA  }
+                });
+
+                return false;
+            }
+            if ( !vars.ingame ) {
+                
+                if ( vars.watchers["gamestate"].Current == 3 && vars.watchers["gamestate"].Old != 1 ) {
+                    start = true;
+                }
+            } else {
+                
+                if ( vars.watchers["gameover"].Current == 0 && vars.watchers["defeated"].Current == 255 && vars.watchers["defeated"].Old != 255 ) {
+                    split = true;
+                }
+                if ( vars.watchers["gamestate"].Current == 0 && vars.watchers["gamestate"].Old > 0 ) {
                     reset = true;
                 }
             }

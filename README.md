@@ -12,6 +12,7 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 
 ## Supported Games
 ### 16-bit
+* Dr. Robotnik's Mean Bean Machine
 * Magical Taruruuto-kun
 * Mystic Defender
 * Sonic the Hedgehog 1 (Genesis/Mega Drive)
