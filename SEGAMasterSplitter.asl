@@ -232,6 +232,7 @@ init
         vars.juststarted = false;
         vars.triggerTB = false;
         vars.addspecialstagetime = false; 
+        vars.specialtriggercounter = 0;
         vars.levelselectbytes = new byte[] {0x01}; // Default as most are 0 - off, 1 - on
         IDictionary<string, string> expectednextlevel = new Dictionary<string, string>();
         vars.expectednextlevel = expectednextlevel;
@@ -1559,10 +1560,14 @@ update
                     { "savefilezone", isBigEndian ? 0xFDEB : 0xFDEA },
                     { "s3savefilezone", isBigEndian ? 0xB15F : 0xB15E },
                     { "levelselect", vars.levelselectoffset },
+                    { "endlevelflag", 0xFAA8 },
+                    { "starpostid", 0xFE2B },
+
                     { "chaosemeralds", 0xFFB0 },
+
                     { "superemeralds", 0xFFB1 }
-                    /* $FFA6-$FFA9  Level number in Blue Sphere  */ 
-                    /* $FFB0 	Number of chaos emeralds  */ 
+                    /* $FFA6-$FFA9  Level number in Blue Sphere  */
+                    /* $FFB0 	Number of chaos emeralds  */
                     /* $FFB1 	Number of super emeralds  */ 
                     /* $FFB2-$FFB8 	Array of finished special stages. Each byte represents one stage: 
             
@@ -1574,8 +1579,9 @@ update
 
                 });
                 vars.addUShortAddresses(new Dictionary<string, long>() {
-                    { "timebonus", 0xF7D2 }
-                    
+                    { "timebonus", 0xF7D2 },
+                    { "leftboundary", 0xEE14 },
+
                 });
 
                 vars.addULongAddresses(new Dictionary<string, long>() {
@@ -1634,6 +1640,10 @@ update
                 var zone = vars.watchers["zone"];
                 var act = vars.watchers["act"];
                 var primarybg = vars.watchers["primarybg"];
+                var endlevelflag = vars.watchers["endlevelflag"];
+                var starpostid = vars.watchers["starpostid"];
+                var leftboundary = vars.watchers["leftboundary"];
+
                 if ( primarybg.Changed ) {
                     current.primarybg = primarybg.Current;
                     if ( vars.isBigEndian ) {
@@ -1643,6 +1653,30 @@ update
                 var savefile = vars.watchers["savefile"];
                 var savefilezone = ( vars.isS3 ? vars.watchers["s3savefilezone"] : vars.watchers["savefilezone"] );
 
+                if ( settings["extralogging"] ) {
+                    if ( endlevelflag.Changed ) {
+                        vars.DebugOutput(String.Format("End Level Flag was: {0:X} now: {1:X}", endlevelflag.Old, endlevelflag.Current ) );
+                    }
+                    if ( starpostid.Changed ) {
+                        vars.DebugOutput(String.Format("StarPost ID was: {0:X} now: {1:X}", starpostid.Old, starpostid.Current ) );
+                    }
+
+                    if ( leftboundary.Changed ) {
+                        vars.DebugOutput(String.Format("leftboundary was: {0:X} now: {1:X}", leftboundary.Old, leftboundary.Current ) );
+                    }
+                }
+
+                if ( starpostid.Changed && starpostid.Current != 0 ) {
+                    vars.specialtriggercounter = -1;
+                }
+
+                if ( endlevelflag.Changed && endlevelflag.Current == 0xFF && vars.specialtriggercounter == 0 ) {
+                    vars.specialtriggercounter = 1;
+                }
+
+                if ( leftboundary.Changed && vars.specialtriggercounter == 1) {
+                    vars.specialtriggercounter = 2;
+                }
 
                 if ( trigger.Changed ) {
                     if ( settings["extralogging"] ) {
@@ -1653,6 +1687,9 @@ update
                             foreach ( var watcher in vars.watchers ) {
                                 if ( watcher.Name != "trigger" ) {
                                     watcher.Enabled = vars.isAir;
+                                    if ( vars.isAir && watcher.Name == "s3savefilezone" ) {
+                                        watcher.Enabled = false;
+                                    }
                                     watcher.Reset();
                                 }
                             }
@@ -1673,6 +1710,15 @@ update
                             act.Enabled = true;
                             break;
                         case 0x8C: // start game
+                            if ( vars.specialtriggercounter == 2 ) {
+                                vars.DebugOutput("Y'know we should split for this" );
+                                split = true;
+                                vars.expectedzone = vars.expectedzonemap[zone.Current];
+                                vars.expectedact = ACT_1;
+                                vars.specialtriggercounter = -1;
+                                break;
+                            }
+                            goto case 0x0C;
                         case 0x0C: // in level
                             if ( trigger.Old == 0x8C || trigger.Old == 0xC) {
                                 break;
@@ -1810,8 +1856,9 @@ update
                         switch ( (int)act.Current ) {
                             // This is AFTER a level change.
                             case ACT_1:
+                                vars.specialtriggercounter = 0;
                                 vars.expectedact = ACT_2;
-                                if ( 
+                                if (
                                     // Handle IC boss skip and single act zones.
                                     ( zone.Current == ICE_CAP && vars.skipsAct1Split ) ||
                                     ( zone.Current == SKY_SANCTUARY ) ||
@@ -1823,7 +1870,7 @@ update
                                 split = ( zone.Current < LRB_HIDDEN_PALACE );
                                 break;
                             case ACT_2:
-
+                                vars.specialtriggercounter = -1;
                                 // next split is generally Act 1 of next zone
                                 vars.expectedzone = vars.expectedzonemap[zone.Current];
                                 vars.expectedact = ACT_1;
