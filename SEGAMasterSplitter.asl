@@ -1504,7 +1504,7 @@ update
             if ( !vars.isIGT ) {
                 break;
             }
-            if ( vars.ingame ) {
+            if ( vars.ingame && ( !vars.isGenSonic1or2 || vars.watchers["trigger"].Current == 0x0C ) ) {
                 var oldSeconds = vars.watchers["seconds"].Old;
                 var curSeconds = vars.watchers["seconds"].Current;
                 if ( !vars.isGenSonic1or2 ) {
