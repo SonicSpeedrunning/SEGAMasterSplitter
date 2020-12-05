@@ -280,8 +280,9 @@ init
                 ANCHOR START Sonic the HedgeHog 1 & 2 Genesis watchlist
             **********************************************************************************/
             case "Sonic the Hedgehog (Genesis / Mega Drive)":
+            case "Knuckles the Echidna in Sonic the Hedgehog":
             case "Sonic the Hedgehog":
-            case "Sonic 1": 
+            case "Sonic 1":
             case "Sonic 1 (Genesis)":
             case "Sonic 1 (Mega Drive)":
                 vars.gamename = "Sonic the Hedgehog (Genesis / Mega Drive)";
