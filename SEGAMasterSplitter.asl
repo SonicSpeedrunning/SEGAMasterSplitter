@@ -533,8 +533,9 @@ update
                 break;
             }
             // we are ingame here
-            if ( (vars.watchers["level"].Current == nextSplit - 1  && vars.watchers["trigger"].Current == 17) 
-                    || vars.watchers["trigger"].Current == 21 ) {
+            var isBlackScreenOfNextLevel = vars.watchers["level"].Current == nextSplit - 1  && vars.watchers["trigger"].Current == 17;
+            var isBlackScreenAfterBrainDead = vars.watchers["level"].Current == 5  && vars.watchers["trigger"].Current == 19;
+            if ( isBlackScreenOfNextLevel || isBlackScreenAfterBrainDead) {
                 vars.nextsplit = "" + (nextSplit + 1);
                 // Have control so start timer
                 split = true;
