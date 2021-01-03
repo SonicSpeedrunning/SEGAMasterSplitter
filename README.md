@@ -25,6 +25,7 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 * Sonic Spinball (Genesis/Mega Drive)
 * Tiny Toons Adventures: Buster's Hidden Treasure
 ### 8-bit
+* Cyber Shinobi
 * Alex Kidd in Miracle World
 * Sonic the Hedgehog 1 (Master System)
 * Sonic the Hedgehog 2 (Game Gear / Master System)
