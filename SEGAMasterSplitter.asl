@@ -252,6 +252,7 @@ init
             case "Mystic Defender":
             case "Sonic CD":
             case "Sonic Triple Trouble":
+            case "Cyber Shinobi":
                 break;
             // S1SMS aliases
             case "Sonic the Hedgehog (Master System)":
@@ -501,6 +502,42 @@ update
                 if ( vars.watchers["reset_indicator"].Current == 0 && vars.watchers["reset_indicator"].Old != 0 ) {
                     reset = true;
                 }
+            }
+            break;
+        /**********************************************************************************
+            ANCHOR START Cyber Shinobi
+        **********************************************************************************/
+        case "Cyber Shinobi":
+            if ( watchercount == 0 ) {
+                vars.isSMS = true;
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level", 0x000C  },
+                    { "trigger", 0x0002 },
+                    { "lives", 0x000E },
+                });
+                return false;
+            }
+            // Convert next split to int
+            int nextSplit;
+            var success = int.TryParse(vars.nextsplit, out nextSplit);
+            nextSplit = success ? nextSplit : 0;
+            if ( vars.watchers["trigger"].Current == 1) {
+                reset = true;
+                break;
+            }
+            if ( !vars.ingame) {
+                if (vars.watchers["level"].Current == 0 && vars.watchers["trigger"].Current == 17 && vars.watchers["lives"].Current == 5) {
+                    start = true;
+                    vars.nextsplit = "2";
+                }
+                break;
+            }
+            // we are ingame here
+            if ( (vars.watchers["level"].Current == nextSplit - 1  && vars.watchers["trigger"].Current == 17) 
+                    || vars.watchers["trigger"].Current == 21 ) {
+                vars.nextsplit = "" + (nextSplit + 1);
+                // Have control so start timer
+                split = true;
             }
             break;
         /**********************************************************************************
