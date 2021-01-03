@@ -2,7 +2,7 @@
 
 The Splitter looks mainly for Game State (address 0x0002), lives (address 0x000C) and current level (address 0x000C)
 
-The time starts when current level is 0 and state is 17 (which corresponds to the quick black screen that appears before showing the current level info). A new split is performed when the level corresponds to next split and the state is 17. The last split is done when the state is 21 (which is start of the ending cinematic which appears right after the last score screen).
+The time starts when current level is 0 and state is 17 (which corresponds to the brief black screen that appears before showing the current level info). A new split is performed when the level corresponds to next split and the state is 17. The last split is done when the state is 21 (which is the start of the ending cinematic which appears right after the last score screen).
 
 ## Useful ram addresses
 
