@@ -273,6 +273,8 @@ init
             // S2 8 bit aliases
             case "Sonic the Hedgehog 2 (Game Gear / Master System)":
             case "Sonic the Hedgehog 2 (Master System)":
+            case "Sonic the Hedgehog 2 (SMS)":
+            case "Sonic the Hedgehog 2 (GG)":
             case "Sonic the Hedgehog 2 (Game Gear)":
             case "Sonic 2 Rebirth":
                 vars.gamename = "Sonic the Hedgehog 2 (Game Gear / Master System)";
@@ -1051,7 +1053,7 @@ update
                 vars.isSMSGGSonic2 = true;
                 vars.isSMS = true;
                 vars.isIGT = true;
-                vars.hasRTATB = true;
+                vars.hasRTATB = false;
                 vars.addByteAddresses(new Dictionary<string, long>() {
                     { "seconds",      0x12B9 },
                     { "minutes",      0x12BA },
