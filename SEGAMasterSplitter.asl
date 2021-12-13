@@ -16,29 +16,30 @@ init
     vars.livesplitGameName = vars.gamename;
 
     
-    long memoryOffset = 0, smsMemoryOffset = 0;
-    IntPtr baseAddress, codeOffset;
+    ulong memoryOffset = 0, smsMemoryOffset = 0;
+    ulong baseAddress;
+    IntPtr codeOffset;
 
-    long refLocation = 0, smsOffset = 0;
-    baseAddress = modules.First().BaseAddress;
+    ulong refLocation = 0, smsOffset = 0;
+    baseAddress = (ulong) modules.First().BaseAddress;
     bool isBigEndian = false, isFusion = false, isAir = false;
     SigScanTarget target;
 
     switch ( game.ProcessName.ToLower() ) {
         case "retroarch":
             ProcessModuleWow64Safe libretromodule = modules.Where(m => m.ModuleName == "genesis_plus_gx_libretro.dll" || m.ModuleName == "blastem_libretro.dll").First();
-            baseAddress = libretromodule.BaseAddress;
+            baseAddress = (ulong) libretromodule.BaseAddress;
             if ( libretromodule.ModuleName == "genesis_plus_gx_libretro.dll" ) {
                 vars.DebugOutput("Retroarch - GPGX");
                 if ( game.Is64Bit() ) {
                     target = new SigScanTarget(0x10, "85 C9 74 ?? 83 F9 02 B8 00 00 00 00 48 0F 44 05 ?? ?? ?? ?? C3");
                     codeOffset = vars.LookUpInDLL( game, libretromodule, target );
-                    long memoryReference = memory.ReadValue<int>( codeOffset );
-                    refLocation = ( (long) codeOffset + 0x04 + memoryReference );
+                    ulong memoryReference = (ulong) memory.ReadValue<int>( codeOffset );
+                    refLocation = ( (ulong) codeOffset + 0x04 + memoryReference );
                 } else {
                     target = new SigScanTarget(0, "8B 44 24 04 85 C0 74 18 83 F8 02 BA 00 00 00 00 B8 ?? ?? ?? ?? 0F 45 C2 C3 8D B4 26 00 00 00 00");
                     codeOffset = vars.LookUpInDLL( game, libretromodule, target );
-                    refLocation = (long) codeOffset + 0x11;
+                    refLocation = (ulong) codeOffset + 0x11;
                 }
             } else if ( libretromodule.ModuleName == "blastem_libretro.dll" ) {
                 vars.DebugOutput("Retroarch - BlastEm!");
@@ -50,45 +51,45 @@ init
         case "blastem":
             target = new SigScanTarget(0, "81 F9 00 00 E0 00 72 10 81 E1 FF FF 00 00 83 F1 01 8A 89 ?? ?? ?? ?? C3");
             codeOffset = vars.LookUp( game, target );
-            refLocation = (long) codeOffset + 0x13;
+            refLocation = (ulong) codeOffset + 0x13;
 
             target = new SigScanTarget(0, "66 41 81 FD FC FF 73 12 66 41 81 E5 FF 1F 45 0F B7 ED 45 8A AD ?? ?? ?? ?? C3");
             codeOffset = vars.LookUp( game, target );
-            smsOffset = (long) codeOffset + 0x15;
+            smsOffset = (ulong) codeOffset + 0x15;
 
             if ( refLocation == 0x13 && smsOffset == 0x15 ) {
                 throw new NullReferenceException (String.Format("Memory offset not yet found. Base Address: 0x{0:X}", (long) baseAddress ));
             }
             break;
         case "gens":
-            refLocation = memory.ReadValue<int>( IntPtr.Add(baseAddress, 0x40F5C ) );
+            refLocation = (ulong) memory.ReadValue<int>( IntPtr.Add( (IntPtr) baseAddress, 0x40F5C ) );
             break;
         case "fusion":
-            refLocation = (long) IntPtr.Add(baseAddress, 0x2A52D4);
-            smsOffset = (long) IntPtr.Add(baseAddress, 0x2A52D8 );
+            refLocation = (ulong) IntPtr.Add((IntPtr) baseAddress, 0x2A52D4);
+            smsOffset = (ulong) IntPtr.Add((IntPtr) baseAddress, 0x2A52D8 );
             isBigEndian = true;
             isFusion = true;
             break;
         case "segagameroom":
-            baseAddress = modules.Where(m => m.ModuleName == "GenesisEmuWrapper.dll").First().BaseAddress;
-            refLocation = (long) IntPtr.Add(baseAddress, 0xB677E8);
+            baseAddress = (ulong) modules.Where(m => m.ModuleName == "GenesisEmuWrapper.dll").First().BaseAddress;
+            refLocation = (ulong) IntPtr.Add((IntPtr) baseAddress, 0xB677E8);
             break;
         case "segagenesisclassics":
-            refLocation = (long) IntPtr.Add(baseAddress, 0x71704);
+            refLocation = (ulong) IntPtr.Add((IntPtr) baseAddress, 0x71704);
             break;
         case "sonic3air":
             isAir = true;
 
             foreach (var page in game.MemoryPages()) {
                 if ((int)page.RegionSize == 0x521000) {
-                    refLocation = (long) page.BaseAddress + 0x3FFF00 + 0x120;
+                    refLocation = (ulong) page.BaseAddress + 0x3FFF00 + 0x120;
                     break;
                 }
             }
             if ( refLocation > 0 ) {
-                long injectionMem = (long) game.AllocateMemory(0x08);
+                ulong injectionMem = (ulong) game.AllocateMemory(0x08);
                 game.Suspend();
-                game.WriteBytes(new IntPtr(injectionMem), BitConverter.GetBytes( (long) refLocation ) );
+                game.WriteBytes(new IntPtr((long)injectionMem), BitConverter.GetBytes( (long) refLocation ) );
                 game.Resume();
                 refLocation = injectionMem;
             }
@@ -98,7 +99,11 @@ init
 
     vars.DebugOutput(String.Format("refLocation: 0x{0:X}", refLocation));
     if ( refLocation > 0 ) {
-        memoryOffset = memory.ReadValue<int>( (IntPtr) refLocation );
+        if ( game.Is64Bit() ) {
+            memoryOffset = memory.ReadValue<ulong>( (IntPtr) refLocation );
+        } else {
+            memoryOffset = memory.ReadValue<uint>( (IntPtr) refLocation );
+        }
         if ( memoryOffset == 0 ) {
             memoryOffset = refLocation;
         }
@@ -106,13 +111,21 @@ init
     if ( smsOffset == 0 ) {
         smsOffset = refLocation;
     }
-    vars.emuoffsets = new MemoryWatcherList
-    {
-        new MemoryWatcher<uint>( (IntPtr) refLocation ) { Name = "genesis", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull },
-        new MemoryWatcher<uint>( (IntPtr) smsOffset   ) { Name = "sms", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull },
-        new MemoryWatcher<uint>( (IntPtr) baseAddress ) { Name = "baseaddress", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull }
-    };
-
+    if ( game.Is64Bit() ) {
+        vars.emuoffsets = new MemoryWatcherList
+        {
+            new MemoryWatcher<ulong>( (IntPtr) refLocation ) { Name = "genesis", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull },
+            new MemoryWatcher<ulong>( (IntPtr) smsOffset   ) { Name = "sms", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull },
+            new MemoryWatcher<ulong>( (IntPtr) baseAddress ) { Name = "baseaddress", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull }
+        };
+    } else {
+        vars.emuoffsets = new MemoryWatcherList
+        {
+            new MemoryWatcher<uint>( (IntPtr) refLocation ) { Name = "genesis", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull },
+            new MemoryWatcher<uint>( (IntPtr) smsOffset   ) { Name = "sms", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull },
+            new MemoryWatcher<uint>( (IntPtr) baseAddress ) { Name = "baseaddress", FailAction = MemoryWatcher.ReadFailAction.SetZeroOrNull }
+        };
+    }
     if ( memoryOffset == 0 && smsOffset == 0 ) {
         Thread.Sleep(500);
         throw new NullReferenceException (String.Format("Memory offset not yet found. Base Address: 0x{0:X}", (long) baseAddress ));
@@ -124,7 +137,7 @@ init
     vars.addByteAddresses = (Action <Dictionary<string, long>>)(( addresses ) => {
         foreach ( var byteaddress in addresses ) {
             vars.watchers.Add( new MemoryWatcher<byte>( 
-                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + byteaddress.Value ) 
+                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + (ulong) byteaddress.Value ) 
                 ) { Name = byteaddress.Key, Enabled = true } 
             );
         }
@@ -132,7 +145,7 @@ init
     vars.addUShortAddresses = (Action <Dictionary<string, long>>)(( addresses ) => {
         foreach ( var ushortaddress in addresses ) {
             vars.watchers.Add( new MemoryWatcher<ushort>( 
-                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + ushortaddress.Value )
+                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + (ulong) ushortaddress.Value )
                 ) { Name = ushortaddress.Key, Enabled = true } 
             );
         }
@@ -140,7 +153,7 @@ init
     vars.addUIntAddresses = (Action <Dictionary<string, long>>)(( addresses ) => {
         foreach ( var uintaddress in addresses ) {
             vars.watchers.Add( new MemoryWatcher<uint>( 
-                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + uintaddress.Value )
+                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + (ulong) uintaddress.Value )
                 ) { Name = uintaddress.Key, Enabled = true } 
             );
         }
@@ -148,12 +161,12 @@ init
     vars.addULongAddresses = (Action <Dictionary<string, long>>)(( addresses ) => {
         foreach ( var ushortaddress in addresses ) {
             vars.watchers.Add( new MemoryWatcher<ulong>( 
-                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + ushortaddress.Value )
+                (IntPtr) ( ( vars.isSMS ? smsMemoryOffset : memoryOffset ) + (ulong) ushortaddress.Value )
                 ) { Name = ushortaddress.Key, Enabled = true } 
             );
         }
     });
-
+    
     vars.activateLevelSelect = (Func <bool>)(() => {
         var levelselect = vars.watchers["levelselect"];
         if ( levelselect.Enabled == false ) {
