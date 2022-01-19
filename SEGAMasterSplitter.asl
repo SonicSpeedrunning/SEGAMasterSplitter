@@ -333,6 +333,7 @@ init
             case "Sonic 3 and Knuckles":
             case "Sonic 3 Complete":
             case "Sonic 3: Angel Island Revisited":
+            case "S3AIR - D.A. Garden Edition":
                 vars.gamename = "Sonic 3 & Knuckles";
                 goto case "GenericS3K";
             case "GenericS3K":
