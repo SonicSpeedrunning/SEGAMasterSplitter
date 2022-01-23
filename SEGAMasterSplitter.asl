@@ -256,6 +256,7 @@ init
         switch ( (string) vars.gamename ) {
             // games migrated to memory addresses being within their blocks
             case "Alex Kidd in Miracle World":
+            case "Earthworm Jim":
             case "Cool Spot (Genesis)":
             case "Dr. Robotnik's Mean Bean Machine":
             case "Sonic 3D Blast":
@@ -486,6 +487,131 @@ update
                 }
                 if ( vars.watchers["lives"].Current == 0 && vars.watchers["level"].Current == 0) {
                     reset = true;
+                }
+            }
+            break;
+        /**********************************************************************************
+            ANCHOR START Earthworm Jim Support
+        **********************************************************************************/
+        case "Earthworm Jim":
+            if ( watchercount == 0 ) {
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level", isBigEndian ? 0xA692 : 0xA693 },
+                    /*
+                        00: New Junk City
+                        01: What the heck?
+                        02: Snowman
+                        03: Evil the Cat
+                        04-06: Snot the problem 1-3
+                        07: For Pete's sake!
+                        08: Buttville pt.2
+                        09: Buttville pt.1 (helicopter)
+                        10: Level 5 pt.1 & pt.3
+                        11: Level 5 pt.4 (chicken fly / boss phase 2)
+                        12: Level 5 pt.2 (naked worm section)
+                        13: Intestinal distress
+                        14: Down the tubes pt.1
+                        15: Down the tubes pt.2 (Tube race)
+                        16-22: Andy asteroids 1-7
+                        23-27: Who turned out the lights? 1-5 (Level 5 bonus section)
+                        28: Psycrow fight
+                    */
+                    { "jim_control", isBigEndian ? 0xFD23 : 0xFD22 },   //255 when no control over Jim, 00 otherwise
+                    { "jim_action", isBigEndian ? 0xFDEA : 0xFDEB },    //61 when jim disappears after defeating the Queen
+                    { "demo", isBigEndian ? 0xFF98 : 0xFF99 },          //01 when demo mode, 00 otherwise
+                    { "game_started", isBigEndian ? 0xFBD7 : 0xFBD6 }   //170->202->208->214->220
+                });
+
+                vars.addUShortAddresses(new Dictionary<string, long>() {
+                    { "groovy_1", 0xFCBC },
+                    { "groovy_2", 0xFCBE },
+                    { "menu_screen", 0x9928 } 
+                    /*
+                        82CC: SEGA logo
+                        8862: Main Menu
+                        8842: U're the best
+                        750C: Black screen (transition)
+                        8902: Groovy (sadly cannot be used for splitting due to occasional false-negatives while mashing buttons)
+                        8982: Level title
+                        7BAC: Jim's death screen
+                        8A02: Hey, Shiny Crew & D. L. Only! (Cheat Menu logo)
+                        760C: Cheat Menu itself   
+                    */
+                });
+                return false;
+            }    
+
+            current.menuScreen = vars.watchers["menu_screen"].Current;
+            if ( vars.isBigEndian ) {
+                current.menuScreen = vars.SwapEndianness(current.menuScreen);
+            }
+
+            if ( !vars.ingame ) {
+                if ( current.menuScreen == 0x8862 && vars.watchers["demo"].Current == 0 && vars.watchers["game_started"].Current == 220 ) {
+                    start = true;
+                }
+            } else {
+                if ( (settings["ewj1_reset_sega_logo"] && current.menuScreen == 0x82CC)
+                    || (settings["ewj1_reset_cheat_menu"] && current.menuScreen == 0x8A02) ) {
+
+                    reset = true;
+
+                } else if (current.menuScreen != 0x760C) {      //disable split checks while being in the cheat menu
+
+                    //most of the splits should be performed at the "Groovy" screen after a level
+
+                    current.groovy1 = vars.watchers["groovy_1"].Current;
+                    current.groovy2 = vars.watchers["groovy_2"].Current;
+                    if ( vars.isBigEndian ) {
+                        current.groovy1 = vars.SwapEndianness(current.groovy1);
+                        current.groovy2 = vars.SwapEndianness(current.groovy2);
+                    }
+
+                    current.level = vars.watchers["level"].Current;
+
+                    if (current.groovy1 == 231 && current.groovy2 == 315 && current.groovy1 != old.groovy1 && current.groovy2 != old.groovy2) {
+                        
+                        switch ( (byte) current.level ) {
+                            case 0: case 3: case 6: case 7: case 11: case 13: case 14: case 15:
+                                //regular splits
+                                split = true;                  
+                                break;
+                            case 16: case 17: case 18: case 19: case 20: case 21: case 22:
+                                //splits after Andy Asteroids levels (excluding Psycrow ending)
+                                if (settings["ewj1_split_andy"]) {
+                                    split = true;             
+                                }
+                                break;
+                        }
+                    }
+
+                    //below are the splits when the "Groovy" screen doesn't appear or simply isn't appropriate for splitting
+                    
+                    if (current.level == 8 && vars.watchers["jim_action"].Current == 61 
+                        && vars.watchers["jim_control"].Current == 255 && vars.watchers["jim_control"].Old != 255) {
+                        //final split after defeating the Queen
+                        split = true;
+                    }
+                    if (settings["ewj1_split_andy"] && old.level == 28 && current.level != 28) {
+                        //split after winning the fight with Psycrow in case of failed Andy asteroids race
+                        split = true;
+                    }
+                    if (settings["ewj1_split_evil_cat"] && old.level == 1 && current.level == 3) {
+                        //optional split before the boss fight in What the Heck?
+                        split = true;
+                    }
+                    if (settings["ewj1_split_chicken"] && old.level == 10 && current.level == 11) {
+                        //optional split before the 2nd boss fight in Level 5 ("Chicken fly" section)
+                        split = true;
+                    }
+                    if (settings["ewj1_split_helicopter"] && old.level == 9 && current.level == 8) {
+                        //optional split between the "helicopter" and the main parts in Buttville
+                        split = true;
+                    }
+                    if (settings["ewj1_split_snots"] && (old.level == 4 && current.level == 5 || old.level == 5 && current.level == 6)) {
+                        //optional split after every fight in Snot a problem levels (by default is splits only after the 3rd round)
+                        split = true;
+                    }
                 }
             }
             break;
@@ -2309,6 +2435,18 @@ startup
     settings.Add("coolspot", true, "Settings for Cool Spot");
     settings.Add("coolspot_split_on_cage_hit", true, "Split when cage lock is hit", "coolspot");
     settings.SetToolTip("coolspot_split_on_cage_hit", "If unchecked, split when the next level starts instead.");
+
+    /* Earthworm Jim settings*/
+    settings.Add("ewj1", true, "Settings for Earthworm Jim");
+    settings.Add("ewj1_split", true, "Split", "ewj1");
+    settings.Add("ewj1_split_andy", true, "Split after Andy asteroids levels", "ewj1_split");
+    settings.Add("ewj1_split_evil_cat", false, "Split before the Evil the Cat section in What the heck?", "ewj1_split");
+    settings.Add("ewj1_split_chicken", false, "Split before the Chicken fly section in Level 5", "ewj1_split");
+    settings.Add("ewj1_split_helicopter", false, "Split after the helicopter section in Buttville", "ewj1_split");
+    settings.Add("ewj1_split_snots", false, "Split after each fight in Snot a problem", "ewj1_split");
+    settings.Add("ewj1_reset", true, "Reset", "ewj1");
+    settings.Add("ewj1_reset_sega_logo", true, "Reset on SEGA logo", "ewj1_reset");
+    settings.Add("ewj1_reset_cheat_menu", true, "Reset on entering the cheat menu", "ewj1_reset");
 
     /* Debug Settings */
     settings.Add("debug", false, "Debugging Options");

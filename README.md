@@ -24,6 +24,7 @@ LiveSplit autosplitter designed to handle multiple 8 and 16 bit SEGA games runni
 * Sonic Eraser
 * Sonic Spinball (Genesis/Mega Drive)
 * Tiny Toons Adventures: Buster's Hidden Treasure
+* Earthworm Jim
 ### 8-bit
 * Cyber Shinobi
 * Alex Kidd in Miracle World
