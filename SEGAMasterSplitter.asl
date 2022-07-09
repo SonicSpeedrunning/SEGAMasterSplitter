@@ -34,6 +34,12 @@ init
                 if ( game.Is64Bit() ) {
                     target = new SigScanTarget(0x10, "85 C9 74 ?? 83 F9 02 B8 00 00 00 00 48 0F 44 05 ?? ?? ?? ?? C3");
                     codeOffset = vars.LookUpInDLL( game, libretromodule, target );
+                    if ( codeOffset == IntPtr.Zero ) {
+                        target = new SigScanTarget(0x0D, "85 C9 74 ?? 31 C0 83 F9 02 48 0F 44 05 ?? ?? ?? ?? C3");
+                        codeOffset = vars.LookUpInDLL( game, libretromodule, target );
+                    }
+                    
+                    codeOffset = vars.LookUpInDLL( game, libretromodule, target );
                     ulong memoryReference = (ulong) memory.ReadValue<int>( codeOffset );
                     refLocation = ( (ulong) codeOffset + 0x04 + memoryReference );
                 } else {
