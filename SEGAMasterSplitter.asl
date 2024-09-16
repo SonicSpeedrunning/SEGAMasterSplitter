@@ -10,6 +10,7 @@ state("SEGAGameRoom") {}
 state("SEGAGenesisClassics") {}
 state("blastem") {}
 state("Sonic3AIR") {}
+
 init
 {
     vars.gamename = timer.Run.GameName;
@@ -2483,6 +2484,11 @@ reset
         current.reset = false;
         return true;
     }
+}
+
+onReset
+{
+    vars.reInitialise();
 }
 
 split
