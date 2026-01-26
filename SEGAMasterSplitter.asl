@@ -267,6 +267,7 @@ init
             case "Cool Spot (Genesis)":
             case "Dr. Robotnik's Mean Bean Machine":
             case "Sonic 3D Blast":
+            case "Sonic 3D Blast Director's Cut":
             case "Sonic Eraser":
             case "Tiny Toon Adventures: Buster's Hidden Treasure":
             case "Magical Taruruuto-kun":
@@ -899,6 +900,68 @@ update
             current.igt = Math.Floor(Convert.ToDouble(lfc / 60) );
 
             if ( current.igt == old.igt + 1) {
+                vars.igttotal++;
+            }
+            current.timerPhase = timer.CurrentPhase;
+
+            if ( vars.watchers["emeralds"].Current != vars.watchers["emeralds"].Old ) {
+                vars.DebugOutput(String.Format("Emeralds: {0}", vars.watchers["emeralds"].Current));
+            }
+
+            if ( !vars.ingame && vars.watchers["ingame"].Current == 1 && vars.watchers["ingame"].Old == 0 && vars.watchers["level"].Current <= 1 ) {
+                start = true;
+            }
+
+            if (vars.watchers["ingame"].Current == 0 && vars.watchers["ingame"].Old == 1 && vars.watchers["level"].Current == 0 ) {
+                reset = true;
+            }
+            if ( vars.watchers["level"].Current > 1 && vars.watchers["level"].Current == (vars.watchers["level"].Old + 1)  // Level Change
+            ) {
+                split = true;
+            }
+            if ( 
+                ( vars.watchers["level"].Current == 21 && vars.watchers["emeralds"].Current < 7 && vars.watchers["ppboss"].Old == 224 && vars.watchers["ppboss"].Current == 128) || // Panic Puppet Boss Destroyed
+                ( vars.watchers["level"].Current == 22 && vars.watchers["ffboss"].Old == 1 && vars.watchers["ffboss"].Current == 0) // Final Fight Boss
+            ) {
+                vars.bossdown = true;
+            }
+            if (
+                vars.bossdown &&
+                vars.watchers["fadeout"].Current == 0 && vars.watchers["fadeout"].Old != 0
+            ) {
+                split = true;
+            }
+
+
+            gametime = TimeSpan.FromSeconds(vars.igttotal);
+            break;
+
+        /**********************************************************************************
+            ANCHOR START Sonic 3D Blast DX Support
+        **********************************************************************************/
+        case "Sonic 3D Blast Director's Cut":
+            if ( watchercount == 0 ) {
+                vars.levelselectoffset = 0x040E;
+                vars.addByteAddresses(new Dictionary<string, long>() {
+                    { "level",          isBigEndian ? 0x06B3 : 0x06B2 },
+                    { "ingame",         0x0BD8 },
+                    { "ppboss",         isBigEndian ? 0xD331 : 0xD330 },
+                    { "ffboss",         isBigEndian ? 0x0C7B : 0x0C7A },
+                    { "emeralds",       isBigEndian ? 0x06DD : 0x06DC },
+                    { "fadeout",        isBigEndian ? 0x0A63 : 0x0A62 },
+                    { "levelselect",    vars.levelselectoffset }
+                    
+                });
+                vars.addUShortAddresses(new Dictionary<string, long>() {
+                    { "levelframecount", 0x0AA4 }
+                });
+                vars.igttotal = 0;
+                vars.isIGT = true;
+                current.igt = 0;
+                return false;
+            }
+
+            if ( vars.watchers["levelframecount"].Current == vars.watchers["levelframecount"].Old + 1) {
                 vars.igttotal++;
             }
             current.timerPhase = timer.CurrentPhase;
